@@ -23,6 +23,10 @@ const CAR_SIZE = 50;
 const ITEM_SIZE = 40;
 const ROAD_SPEED_INITIAL = 3;
 const SPAWN_INTERVAL = 60;
+const GAME_DURATION = 120; // seconds
+const TARGET_COINS = 30;
+
+type GamePhase = "countdown" | "playing" | "finished";
 
 let nextItemId = 0;
 let nextCoinAnimId = 0;
@@ -33,10 +37,14 @@ export default function RacingGame() {
   const [score, setScore] = useState(0);
   const [wheelAngle, setWheelAngle] = useState(0);
   const [flyingCoins, setFlyingCoins] = useState<FlyingCoin[]>([]);
+  const [phase, setPhase] = useState<GamePhase>("countdown");
+  const [countdown, setCountdown] = useState(3);
+  const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const gameStateRef = useRef({
-    carX: 0.5,         // normalized 0-1 position on road
-    targetCarX: 0.5,   // target position to smoothly interpolate toward
+    carX: 0.5,
+    targetCarX: 0.5,
     items: [] as RoadItem[],
     roadOffset: 0,
     frameCount: 0,
@@ -46,6 +54,7 @@ export default function RacingGame() {
     height: 0,
     roadLeft: 0,
     roadWidth: 300,
+    playing: false,
   });
   const animRef = useRef<number | null>(null);
 
@@ -65,7 +74,15 @@ export default function RacingGame() {
     return { roadWidth, roadLeft };
   }, []);
 
-  const initGame = useCallback(() => {
+  const startCountdown = useCallback(() => {
+    setPhase("countdown");
+    setCountdown(3);
+    setScore(0);
+    setTimeLeft(GAME_DURATION);
+    setWheelAngle(0);
+    setFlyingCoins([]);
+    steerRef.current.currentAngle = 0;
+
     const gs = gameStateRef.current;
     gs.carX = 0.5;
     gs.targetCarX = 0.5;
@@ -74,11 +91,41 @@ export default function RacingGame() {
     gs.frameCount = 0;
     gs.speed = ROAD_SPEED_INITIAL;
     gs.score = 0;
-    setScore(0);
-    setWheelAngle(0);
-    steerRef.current.currentAngle = 0;
+    gs.playing = false;
     nextItemId = 0;
+
+    let c = 3;
+    const cdInterval = setInterval(() => {
+      c--;
+      if (c > 0) {
+        setCountdown(c);
+        audioManager.pop();
+      } else {
+        clearInterval(cdInterval);
+        setPhase("playing");
+        gs.playing = true;
+        audioManager.chime();
+
+        // Start game timer
+        if (timerRef.current) clearInterval(timerRef.current);
+        let remaining = GAME_DURATION;
+        timerRef.current = setInterval(() => {
+          remaining--;
+          setTimeLeft(remaining);
+          if (remaining <= 0) {
+            clearInterval(timerRef.current!);
+            timerRef.current = null;
+            gs.playing = false;
+            setPhase("finished");
+            audioManager.success();
+          }
+        }, 1000);
+      }
+    }, 1000);
+    audioManager.pop();
   }, []);
+
+  const initGame = startCountdown;
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -199,8 +246,11 @@ export default function RacingGame() {
   const gameLoop = useCallback(() => {
     const gs = gameStateRef.current;
 
+    // Always lerp car + draw, but only spawn/move items when playing
     gs.frameCount++;
-    gs.roadOffset += gs.speed;
+    if (gs.playing) {
+      gs.roadOffset += gs.speed;
+    }
 
     // Smooth car movement — lerp toward target
     const diff = gs.targetCarX - gs.carX;
@@ -210,9 +260,15 @@ export default function RacingGame() {
     const margin = (CAR_SIZE / 2 + 4) / gs.roadWidth;
     gs.carX = Math.max(margin, Math.min(1 - margin, gs.carX));
 
+    if (!gs.playing) {
+      draw();
+      animRef.current = requestAnimationFrame(gameLoop);
+      return;
+    }
+
     // Spawn items
     if (gs.frameCount % SPAWN_INTERVAL === 0) {
-      const lanePositions = [0.167, 0.5, 0.833]; // center of 3 lanes
+      const lanePositions = [0.167, 0.5, 0.833];
       const laneX = pickRandom(lanePositions);
       const type = pickRandom(
         Math.random() < 0.6 ? (["coin"] as const) : (["obstacle"] as const)
@@ -347,6 +403,7 @@ export default function RacingGame() {
     return () => {
       window.removeEventListener("resize", resize);
       if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [initGame, gameLoop, settings.volume, computeRoad]);
 
@@ -354,9 +411,19 @@ export default function RacingGame() {
     <div className="fixed inset-0" style={{ touchAction: "none" }}>
       <canvas ref={canvasRef} className="w-full h-full" />
 
-      {/* Score */}
-      <div className="fixed top-4 right-4 z-20 bg-white/80 backdrop-blur rounded-2xl px-4 py-2 shadow-md">
-        <span className="text-xl font-black text-[#FFB74D]">🪙 {score}</span>
+      {/* HUD: Score + Timer + Target */}
+      <div className="fixed top-4 left-4 right-4 z-20 flex justify-between items-start">
+        {/* Timer */}
+        <div className="bg-white/80 backdrop-blur rounded-2xl px-3 py-1.5 shadow-md">
+          <span className={`text-lg font-black ${timeLeft <= 10 ? "text-[#EF5350]" : "text-[#4A4A4A]"}`}>
+            ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+          </span>
+        </div>
+        {/* Score + Target */}
+        <div className="bg-white/80 backdrop-blur rounded-2xl px-3 py-1.5 shadow-md text-right">
+          <span className="text-lg font-black text-[#FFB74D]">🪙 {score}</span>
+          <span className="text-xs font-bold text-gray-400 block -mt-0.5">目標 {TARGET_COINS}</span>
+        </div>
       </div>
 
       {/* Flying coins animation */}
@@ -425,6 +492,43 @@ export default function RacingGame() {
           <circle cx="60" cy="8" r="5" fill="#EF5350" />
         </svg>
       </div>
+
+      {/* Countdown overlay */}
+      {phase === "countdown" && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="text-[120px] font-black text-white animate-bounce-in" key={countdown}>
+            {countdown}
+          </div>
+        </div>
+      )}
+
+      {/* Finished overlay */}
+      {phase === "finished" && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 text-center shadow-2xl animate-celebrate max-w-sm mx-4">
+            <div className="text-6xl mb-3">
+              {score >= TARGET_COINS ? "🏆" : "🏁"}
+            </div>
+            <h2 className="text-3xl font-black text-[#FF69B4] mb-1">
+              {score >= TARGET_COINS ? "太厲害了！" : "完賽！"}
+            </h2>
+            <p className="text-lg text-gray-500 mb-1">
+              收集了 <span className="font-black text-[#FFB74D]">{score}</span> 個金幣
+            </p>
+            <p className="text-sm text-gray-400 mb-5">
+              {score >= TARGET_COINS
+                ? `超過目標 ${TARGET_COINS} 個！好棒！`
+                : `目標 ${TARGET_COINS} 個，再加油！`}
+            </p>
+            <button
+              onClick={startCountdown}
+              className="px-8 py-4 rounded-2xl bg-[#4FC3F7] text-white font-bold text-xl active:scale-95 transition-transform"
+            >
+              再玩一次
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

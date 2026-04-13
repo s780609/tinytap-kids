@@ -258,8 +258,78 @@ export default function DrawingBoard() {
         onPointerLeave={endDraw}
       />
 
+      {/* Floating picker panel (above toolbar) */}
+      {(showStamps || showTemplates || showBgPicker) && (
+        <div className="fixed bottom-[100px] left-0 right-0 z-30 flex justify-center px-2">
+          <div className="bg-white rounded-2xl shadow-xl px-3 py-2 flex items-center gap-2 max-w-full overflow-x-auto">
+            {showStamps &&
+              STAMPS.map((s) => (
+                <button
+                  key={s.emoji}
+                  className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-xl transition-all ${
+                    activeStamp === s.emoji
+                      ? "bg-yellow-200 ring-2 ring-yellow-500 scale-110"
+                      : "bg-gray-100"
+                  }`}
+                  onClick={() => {
+                    setActiveStamp(activeStamp === s.emoji ? null : s.emoji);
+                    setIsEraser(false);
+                  }}
+                >
+                  {s.emoji}
+                </button>
+              ))}
+            {showTemplates && (
+              <>
+                <button
+                  className={`h-10 px-3 shrink-0 rounded-xl flex items-center justify-center text-sm font-bold transition-all ${
+                    activeTemplate === null
+                      ? "bg-green-200 ring-2 ring-green-500"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                  onClick={() => setActiveTemplate(null)}
+                >
+                  自由畫
+                </button>
+                {TRACE_TEMPLATES.map((t) => (
+                  <button
+                    key={t.name}
+                    className={`h-10 px-3 shrink-0 rounded-xl flex items-center gap-1 justify-center text-sm font-bold transition-all ${
+                      activeTemplate?.name === t.name
+                        ? "bg-green-200 ring-2 ring-green-500"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                    onClick={() => {
+                      setActiveTemplate(activeTemplate?.name === t.name ? null : t);
+                      audioManager.ding();
+                    }}
+                  >
+                    <span className="text-lg">{t.emoji}</span>
+                    {t.label}
+                  </button>
+                ))}
+              </>
+            )}
+            {showBgPicker &&
+              BG_COLORS.map((c) => (
+                <button
+                  key={c}
+                  className={`w-10 h-10 shrink-0 rounded-full border-2 transition-transform ${
+                    bgColor === c ? "border-gray-600 scale-110" : "border-gray-300"
+                  }`}
+                  style={{ backgroundColor: c }}
+                  onClick={() => {
+                    setBgColor(c);
+                    setShowBgPicker(false);
+                  }}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
-      <div ref={toolbarRef} className="flex flex-col gap-2 p-2 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] shrink-0">
+      <div ref={toolbarRef} className="flex flex-col gap-1.5 p-2 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] shrink-0">
         {/* Row 1: Colors */}
         <div className="flex items-center gap-1 justify-center">
           {COLORS.map((c) => (
@@ -281,13 +351,13 @@ export default function DrawingBoard() {
           ))}
         </div>
 
-        {/* Row 2: Tools */}
-        <div className="flex items-center gap-1.5 justify-center flex-wrap">
+        {/* Row 2: Tools - horizontal scroll, no wrap */}
+        <div className="flex items-center gap-1.5 justify-center overflow-x-auto flex-nowrap pb-0.5">
           {/* Brush sizes */}
           {BRUSH_SIZES.map((s) => (
             <button
               key={s}
-              className={`flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-xl transition-all ${
+              className={`flex items-center justify-center w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl transition-all ${
                 brushSize === s && !isEraser && !activeStamp
                   ? "bg-gray-200 ring-2 ring-gray-400"
                   : "bg-gray-50"
@@ -309,7 +379,7 @@ export default function DrawingBoard() {
 
           {/* Eraser */}
           <button
-            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl flex items-center justify-center text-lg transition-all ${
               isEraser ? "bg-pink-100 ring-2 ring-pink-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -323,7 +393,7 @@ export default function DrawingBoard() {
 
           {/* Stamps toggle */}
           <button
-            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl flex items-center justify-center text-lg transition-all ${
               showStamps ? "bg-yellow-100 ring-2 ring-yellow-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -337,7 +407,7 @@ export default function DrawingBoard() {
 
           {/* Templates toggle */}
           <button
-            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl flex items-center justify-center text-lg transition-all ${
               showTemplates ? "bg-green-100 ring-2 ring-green-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -351,7 +421,7 @@ export default function DrawingBoard() {
 
           {/* BG color */}
           <button
-            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl flex items-center justify-center text-lg transition-all ${
               showBgPicker ? "bg-blue-100 ring-2 ring-blue-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -367,7 +437,7 @@ export default function DrawingBoard() {
 
           {/* Undo */}
           <button
-            className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
+            className="w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
             onClick={handleUndo}
           >
             ↩️
@@ -375,87 +445,14 @@ export default function DrawingBoard() {
 
           {/* Clear */}
           <button
-            className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
+            className="w-9 h-9 md:w-10 md:h-10 shrink-0 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
             onClick={handleClear}
           >
             🗑️
           </button>
         </div>
 
-        {/* Conditional Row 3: Stamps / Templates / BG picker */}
-        {showStamps && (
-          <div className="flex items-center gap-2 justify-center">
-            {STAMPS.map((s) => (
-              <button
-                key={s.emoji}
-                className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-xl transition-all ${
-                  activeStamp === s.emoji
-                    ? "bg-yellow-200 ring-2 ring-yellow-500 scale-110"
-                    : "bg-gray-50"
-                }`}
-                onClick={() => {
-                  setActiveStamp(activeStamp === s.emoji ? null : s.emoji);
-                  setIsEraser(false);
-                }}
-              >
-                {s.emoji}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {showTemplates && (
-          <div className="flex items-center gap-2 justify-center">
-            {/* No template (free draw) */}
-            <button
-              className={`h-10 px-3 rounded-xl flex items-center justify-center text-sm font-bold transition-all ${
-                activeTemplate === null
-                  ? "bg-green-200 ring-2 ring-green-500"
-                  : "bg-gray-50 text-gray-500"
-              }`}
-              onClick={() => setActiveTemplate(null)}
-            >
-              自由畫
-            </button>
-            {TRACE_TEMPLATES.map((t) => (
-              <button
-                key={t.name}
-                className={`h-10 px-3 rounded-xl flex items-center gap-1.5 justify-center text-sm font-bold transition-all ${
-                  activeTemplate?.name === t.name
-                    ? "bg-green-200 ring-2 ring-green-500 scale-105"
-                    : "bg-gray-50 text-gray-500"
-                }`}
-                onClick={() => {
-                  setActiveTemplate(
-                    activeTemplate?.name === t.name ? null : t
-                  );
-                  audioManager.ding();
-                }}
-              >
-                <span className="text-lg">{t.emoji}</span>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {showBgPicker && (
-          <div className="flex items-center gap-2 justify-center">
-            {BG_COLORS.map((c) => (
-              <button
-                key={c}
-                className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 transition-transform ${
-                  bgColor === c ? "border-gray-600 scale-110" : "border-gray-300"
-                }`}
-                style={{ backgroundColor: c }}
-                onClick={() => {
-                  setBgColor(c);
-                  setShowBgPicker(false);
-                }}
-              />
-            ))}
-          </div>
-        )}
+        {/* Pickers moved to floating panel above toolbar */}
       </div>
     </div>
   );
