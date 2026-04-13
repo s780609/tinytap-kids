@@ -1,65 +1,103 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import BigButton from "@/components/ui/BigButton";
+import VolumeSlider from "@/components/ui/VolumeSlider";
+import ParentSettings from "@/components/ui/ParentSettings";
+import { useSettings } from "@/lib/settings/SettingsContext";
+import { audioManager } from "@/lib/audio/AudioManager";
+
+export default function HomePage() {
+  const router = useRouter();
+  const { settings } = useSettings();
+  const [showVolume, setShowVolume] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasInited = useRef(false);
+
+  useEffect(() => {
+    if (settings.defaultMode !== "ask" && !hasInited.current) {
+      hasInited.current = true;
+      router.push(`/${settings.defaultMode}`);
+    }
+  }, [settings.defaultMode, router]);
+
+  const handleModeSelect = (mode: "baby" | "toddler") => {
+    audioManager.init();
+    audioManager.setVolume(settings.volume);
+    audioManager.preloadAll();
+    audioManager.ding();
+    router.push(`/${mode}`);
+  };
+
+  const startLongPress = () => {
+    longPressTimer.current = setTimeout(() => setShowSettings(true), 800);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 gap-6 relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[10%] left-[5%] w-16 h-16 rounded-full bg-[#FFD54F]/20 animate-bubble-float" />
+        <div className="absolute top-[20%] right-[10%] w-12 h-12 rounded-full bg-[#4FC3F7]/20 animate-bubble-float" style={{ animationDelay: "1s" }} />
+        <div className="absolute bottom-[15%] left-[15%] w-20 h-20 rounded-full bg-[#CE93D8]/20 animate-bubble-float" style={{ animationDelay: "2s" }} />
+        <div className="absolute bottom-[25%] right-[8%] w-14 h-14 rounded-full bg-[#81C784]/20 animate-bubble-float" style={{ animationDelay: "0.5s" }} />
+      </div>
+
+      {/* Parent settings trigger (top-right invisible area) */}
+      <div
+        className="fixed top-0 right-0 w-20 h-20 z-30"
+        onPointerDown={startLongPress}
+        onPointerUp={cancelLongPress}
+        onPointerLeave={cancelLongPress}
+      />
+
+      {/* Title */}
+      <div className="animate-title-bounce z-10">
+        <h1 className="text-5xl md:text-6xl font-black text-[#FF69B4] drop-shadow-sm">
+          TinyTap
+        </h1>
+        <p className="text-2xl md:text-3xl font-bold text-[#4FC3F7] text-center -mt-1">
+          Kids
+        </p>
+      </div>
+
+      {/* Mode buttons */}
+      <div className="flex flex-col gap-5 w-full max-w-sm z-10 mt-4">
+        <BigButton color="#FF69B4" onClick={() => handleModeSelect("baby")}>
+          <span className="text-5xl mb-2">🎈</span>
+          <span>Baby Mode</span>
+          <span className="text-base font-normal opacity-80">1 year old</span>
+        </BigButton>
+
+        <BigButton color="#4FC3F7" onClick={() => handleModeSelect("toddler")}>
+          <span className="text-5xl mb-2">⭐</span>
+          <span>Toddler Mode</span>
+          <span className="text-base font-normal opacity-80">2 years old</span>
+        </BigButton>
+      </div>
+
+      {/* Volume button */}
+      <button
+        onClick={() => setShowVolume(true)}
+        className="fixed bottom-6 left-6 z-30 w-14 h-14 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow-md active:scale-90 transition-transform"
+        aria-label="Volume"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF69B4">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+        </svg>
+      </button>
+
+      {/* Modals */}
+      {showVolume && <VolumeSlider onClose={() => setShowVolume(false)} />}
+      {showSettings && (
+        <ParentSettings onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }

@@ -1,26 +1,200 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-nunito: "Nunito", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #fff0f5;
+  --foreground: #4a4a4a;
+}
+
+* {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100%;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-nunito);
+}
+
+/* Balloon float animation */
+@keyframes balloon-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  25% {
+    transform: translateY(-12px) rotate(2deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(-1deg);
+  }
+  75% {
+    transform: translateY(-15px) rotate(1deg);
+  }
+}
+
+.animate-balloon-float {
+  animation: balloon-float 3s ease-in-out infinite;
+}
+
+/* Balloon pop */
+@keyframes balloon-pop {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+.animate-pop {
+  animation: balloon-pop 0.25s ease-out forwards;
+}
+
+/* Gentle wobble for wrong answers */
+@keyframes wobble {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(8px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-wobble {
+  animation: wobble 0.4s ease-in-out;
+}
+
+/* Bounce in */
+@keyframes bounce-in {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Bubble wobble float */
+@keyframes bubble-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(8px, -15px) scale(1.02);
+  }
+  50% {
+    transform: translate(-5px, -8px) scale(0.98);
+  }
+  75% {
+    transform: translate(10px, -20px) scale(1.01);
+  }
+}
+
+.animate-bubble-float {
+  animation: bubble-float 4s ease-in-out infinite;
+}
+
+/* Title bounce */
+@keyframes title-bounce {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-title-bounce {
+  animation: title-bounce 2s ease-in-out infinite;
+}
+
+/* Celebration scale */
+@keyframes celebrate {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-celebrate {
+  animation: celebrate 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Slide up */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+/* Pulse glow for interactive items */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 105, 180, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 10px rgba(255, 105, 180, 0.2);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
