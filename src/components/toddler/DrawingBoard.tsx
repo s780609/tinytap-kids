@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
+import {
+  TRACE_TEMPLATES,
+  type TraceTemplate,
+} from "@/lib/templates/traceTemplates";
 
 const COLORS = [
   "#EF5350", "#FF69B4", "#CE93D8", "#4FC3F7",
@@ -30,8 +34,10 @@ export default function DrawingBoard() {
   const [isEraser, setIsEraser] = useState(false);
   const [bgColor, setBgColor] = useState(BG_COLORS[0]);
   const [activeStamp, setActiveStamp] = useState<string | null>(null);
+  const [activeTemplate, setActiveTemplate] = useState<TraceTemplate | null>(null);
   const [showStamps, setShowStamps] = useState(false);
   const [showBgPicker, setShowBgPicker] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const isDrawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const historyRef = useRef<ImageData[]>([]);
@@ -41,13 +47,53 @@ export default function DrawingBoard() {
     return canvasRef.current?.getContext("2d") ?? null;
   }, []);
 
+  const drawTemplate = useCallback(
+    (template: TraceTemplate | null) => {
+      const ctx = getCtx();
+      const canvas = canvasRef.current;
+      if (!ctx || !canvas || !template) return;
+
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+      const templateSize = 400;
+      const fitSize = Math.min(canvasW, canvasH) * 0.8;
+      const scale = fitSize / templateSize;
+      const offsetX = (canvasW - fitSize) / 2;
+      const offsetY = (canvasH - fitSize) / 2;
+
+      ctx.save();
+      ctx.strokeStyle = "#D0D0D0";
+      ctx.lineWidth = 2.5 / scale;
+      ctx.setLineDash([8 / scale, 6 / scale]);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      template.draw(ctx, offsetX, offsetY, scale);
+
+      ctx.setLineDash([]);
+      ctx.restore();
+    },
+    [getCtx]
+  );
+
+  const fillBgAndTemplate = useCallback(
+    (template: TraceTemplate | null) => {
+      const ctx = getCtx();
+      const canvas = canvasRef.current;
+      if (!ctx || !canvas) return;
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (template) drawTemplate(template);
+    },
+    [bgColor, drawTemplate, getCtx]
+  );
+
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Save current content
     let imageData: ImageData | null = null;
     if (canvas.width > 0 && canvas.height > 0) {
       imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -56,11 +102,9 @@ export default function DrawingBoard() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight - toolbarHeight;
 
-    // Fill background
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Restore content
     if (imageData) {
       ctx.putImageData(imageData, 0, 0);
     }
@@ -70,7 +114,6 @@ export default function DrawingBoard() {
     audioManager.init();
     audioManager.setVolume(settings.volume);
     resizeCanvas();
-    // Save initial state
     const ctx = getCtx();
     const canvas = canvasRef.current;
     if (ctx && canvas) {
@@ -80,15 +123,14 @@ export default function DrawingBoard() {
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas, getCtx, settings.volume]);
 
-  // Refill background when bgColor changes
   useEffect(() => {
+    fillBgAndTemplate(activeTemplate);
     const ctx = getCtx();
     const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
-  }, [bgColor, getCtx]);
+    if (ctx && canvas) {
+      historyRef.current = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
+    }
+  }, [bgColor, activeTemplate, fillBgAndTemplate, getCtx]);
 
   const saveToHistory = useCallback(() => {
     const ctx = getCtx();
@@ -177,13 +219,15 @@ export default function DrawingBoard() {
   };
 
   const handleClear = () => {
-    const ctx = getCtx();
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    fillBgAndTemplate(activeTemplate);
     saveToHistory();
     audioManager.whoosh();
+  };
+
+  const closeAllPickers = () => {
+    setShowStamps(false);
+    setShowBgPicker(false);
+    setShowTemplates(false);
   };
 
   return (
@@ -216,7 +260,7 @@ export default function DrawingBoard() {
                 setColor(c);
                 setIsEraser(false);
                 setActiveStamp(null);
-                setShowStamps(false);
+                closeAllPickers();
               }}
             />
           ))}
@@ -256,7 +300,7 @@ export default function DrawingBoard() {
             onClick={() => {
               setIsEraser(!isEraser);
               setActiveStamp(null);
-              setShowStamps(false);
+              closeAllPickers();
             }}
           >
             🧹
@@ -270,9 +314,24 @@ export default function DrawingBoard() {
             onClick={() => {
               setShowStamps(!showStamps);
               setShowBgPicker(false);
+              setShowTemplates(false);
             }}
           >
             ⭐
+          </button>
+
+          {/* Templates toggle */}
+          <button
+            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+              showTemplates ? "bg-green-100 ring-2 ring-green-400" : "bg-gray-50"
+            }`}
+            onClick={() => {
+              setShowTemplates(!showTemplates);
+              setShowStamps(false);
+              setShowBgPicker(false);
+            }}
+          >
+            ✏️
           </button>
 
           {/* BG color */}
@@ -283,6 +342,7 @@ export default function DrawingBoard() {
             onClick={() => {
               setShowBgPicker(!showBgPicker);
               setShowStamps(false);
+              setShowTemplates(false);
             }}
           >
             🎨
@@ -307,7 +367,7 @@ export default function DrawingBoard() {
           </button>
         </div>
 
-        {/* Conditional Row 3: Stamps or BG picker */}
+        {/* Conditional Row 3: Stamps / Templates / BG picker */}
         {showStamps && (
           <div className="flex items-center gap-2 justify-center">
             {STAMPS.map((s) => (
@@ -324,6 +384,41 @@ export default function DrawingBoard() {
                 }}
               >
                 {s.emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showTemplates && (
+          <div className="flex items-center gap-2 justify-center">
+            {/* No template (free draw) */}
+            <button
+              className={`h-10 px-3 rounded-xl flex items-center justify-center text-sm font-bold transition-all ${
+                activeTemplate === null
+                  ? "bg-green-200 ring-2 ring-green-500"
+                  : "bg-gray-50 text-gray-500"
+              }`}
+              onClick={() => setActiveTemplate(null)}
+            >
+              自由畫
+            </button>
+            {TRACE_TEMPLATES.map((t) => (
+              <button
+                key={t.name}
+                className={`h-10 px-3 rounded-xl flex items-center gap-1.5 justify-center text-sm font-bold transition-all ${
+                  activeTemplate?.name === t.name
+                    ? "bg-green-200 ring-2 ring-green-500 scale-105"
+                    : "bg-gray-50 text-gray-500"
+                }`}
+                onClick={() => {
+                  setActiveTemplate(
+                    activeTemplate?.name === t.name ? null : t
+                  );
+                  audioManager.ding();
+                }}
+              >
+                <span className="text-lg">{t.emoji}</span>
+                {t.label}
               </button>
             ))}
           </div>
