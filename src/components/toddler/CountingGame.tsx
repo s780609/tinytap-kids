@@ -79,12 +79,12 @@ export default function CountingGame() {
 
       {/* Score */}
       <p className="text-lg font-bold text-[#FFB74D] z-10">
-        Score: {score}
+        分數：{score}
       </p>
 
       {/* Question */}
       <p className="text-xl md:text-2xl font-bold text-[#4A4A4A] z-10">
-        How many {fruit.label}s?
+        有幾個{fruit.label}？
       </p>
 
       {/* Fruit display */}
@@ -133,7 +133,7 @@ export default function CountingGame() {
       {/* Match celebration */}
       {matched && (
         <div className="animate-celebrate text-3xl font-black text-[#81C784] z-10">
-          Correct! 答對了！
+          答對了！好棒！
         </div>
       )}
     </div>

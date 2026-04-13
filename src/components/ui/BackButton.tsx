@@ -21,7 +21,7 @@ export default function BackButton({ className = "" }: BackButtonProps) {
         select-none cursor-pointer
         ${className}
       `}
-      aria-label="Back to home"
+      aria-label="返回主畫面"
     >
       <svg
         width="24"

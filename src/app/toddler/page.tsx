@@ -12,7 +12,7 @@ export default function ToddlerModePage() {
       <BackButton />
 
       <h1 className="text-3xl md:text-4xl font-black text-[#4FC3F7] animate-bounce-in">
-        Toddler Mode
+        幼兒模式
       </h1>
 
       <div className="flex flex-col gap-4 w-full max-w-sm mt-2">
@@ -21,7 +21,7 @@ export default function ToddlerModePage() {
           onClick={() => router.push("/toddler/drawing")}
         >
           <span className="text-4xl mb-1">🎨</span>
-          <span className="text-white">Drawing Board</span>
+          <span className="text-white">畫畫板</span>
         </BigButton>
 
         <BigButton
@@ -29,7 +29,7 @@ export default function ToddlerModePage() {
           onClick={() => router.push("/toddler/memory")}
         >
           <span className="text-4xl mb-1">🃏</span>
-          <span className="text-white">Memory Match</span>
+          <span className="text-white">記憶翻牌</span>
         </BigButton>
 
         <BigButton
@@ -37,7 +37,7 @@ export default function ToddlerModePage() {
           onClick={() => router.push("/toddler/counting")}
         >
           <span className="text-4xl mb-1">🔢</span>
-          <span className="text-white">Counting</span>
+          <span className="text-white">數一數</span>
         </BigButton>
 
         <BigButton
@@ -45,7 +45,7 @@ export default function ToddlerModePage() {
           onClick={() => router.push("/toddler/racing")}
         >
           <span className="text-4xl mb-1">🏎️</span>
-          <span className="text-white">Racing</span>
+          <span className="text-white">賽車</span>
         </BigButton>
       </div>
     </div>

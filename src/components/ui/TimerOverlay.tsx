@@ -48,7 +48,7 @@ export default function TimerOverlay() {
       <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center">
         <div className="text-6xl mb-4">🌙</div>
         <h2 className="text-2xl font-bold text-[#4A4A4A] mb-2">
-          Time for a break!
+          該休息囉！
         </h2>
         <p className="text-lg text-gray-500 mb-6">休息一下吧！</p>
         <div className="flex flex-col gap-3">
@@ -56,13 +56,13 @@ export default function TimerOverlay() {
             onClick={handleExtend}
             className="w-full py-4 rounded-2xl bg-[#4FC3F7] text-white font-bold text-lg active:scale-95 transition-transform"
           >
-            5 more minutes
+            再玩 5 分鐘
           </button>
           <button
             onClick={handleStop}
             className="w-full py-4 rounded-2xl bg-[#FF69B4] text-white font-bold text-lg active:scale-95 transition-transform"
           >
-            OK, stop playing
+            好，不玩了
           </button>
         </div>
       </div>

@@ -63,7 +63,7 @@ export default function HomePage() {
           TinyTap
         </h1>
         <p className="text-2xl md:text-3xl font-bold text-[#4FC3F7] text-center -mt-1">
-          Kids
+          兒童樂園
         </p>
       </div>
 
@@ -71,14 +71,14 @@ export default function HomePage() {
       <div className="flex flex-col gap-5 w-full max-w-sm z-10 mt-4">
         <BigButton color="#FF69B4" onClick={() => handleModeSelect("baby")}>
           <span className="text-5xl mb-2">🎈</span>
-          <span>Baby Mode</span>
-          <span className="text-base font-normal opacity-80">1 year old</span>
+          <span>寶寶模式</span>
+          <span className="text-base font-normal opacity-80">適合 1 歲</span>
         </BigButton>
 
         <BigButton color="#4FC3F7" onClick={() => handleModeSelect("toddler")}>
           <span className="text-5xl mb-2">⭐</span>
-          <span>Toddler Mode</span>
-          <span className="text-base font-normal opacity-80">3 years old</span>
+          <span>幼兒模式</span>
+          <span className="text-base font-normal opacity-80">適合 3 歲</span>
         </BigButton>
       </div>
 
@@ -86,7 +86,7 @@ export default function HomePage() {
       <button
         onClick={() => setShowVolume(true)}
         className="fixed bottom-6 left-6 z-30 w-14 h-14 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow-md active:scale-90 transition-transform"
-        aria-label="Volume"
+        aria-label="音量"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF69B4">
           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />

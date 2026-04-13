@@ -14,12 +14,12 @@ const BRUSH_SIZES = [6, 14, 24];
 const BG_COLORS = ["#FFFFFF", "#E3F2FD", "#E8F5E9", "#FCE4EC"];
 
 const STAMPS = [
-  { emoji: "⭐", label: "Star" },
-  { emoji: "❤️", label: "Heart" },
-  { emoji: "🐱", label: "Cat" },
-  { emoji: "🐶", label: "Dog" },
-  { emoji: "🌸", label: "Flower" },
-  { emoji: "🦋", label: "Butterfly" },
+  { emoji: "⭐", label: "星星" },
+  { emoji: "❤️", label: "愛心" },
+  { emoji: "🐱", label: "貓咪" },
+  { emoji: "🐶", label: "小狗" },
+  { emoji: "🌸", label: "花朵" },
+  { emoji: "🦋", label: "蝴蝶" },
 ];
 
 export default function DrawingBoard() {

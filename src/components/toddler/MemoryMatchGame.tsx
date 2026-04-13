@@ -120,12 +120,12 @@ export default function MemoryMatchGame() {
       <ParticleCanvas engineRef={engineRef} />
 
       <p className="text-xl md:text-2xl font-bold text-[#4A4A4A] z-10">
-        Find the matching pairs!
+        找出一樣的配對！
       </p>
 
       {/* Score */}
       <p className="text-lg font-semibold text-[#FF69B4] z-10">
-        {matchCount} / {totalPairs} pairs
+        {matchCount} / {totalPairs} 對
       </p>
 
       {/* Card grid */}
@@ -164,14 +164,14 @@ export default function MemoryMatchGame() {
           <div className="bg-white rounded-3xl p-8 text-center shadow-2xl animate-celebrate">
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-3xl font-black text-[#FF69B4] mb-2">
-              You did it!
+              太厲害了！
             </h2>
             <p className="text-xl text-gray-500 mb-6">好棒！全部配對成功！</p>
             <button
               onClick={initGame}
               className="px-8 py-4 rounded-2xl bg-[#4FC3F7] text-white font-bold text-xl active:scale-95 transition-transform"
             >
-              Play Again
+              再玩一次
             </button>
           </div>
         </div>

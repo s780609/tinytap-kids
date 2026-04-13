@@ -14,7 +14,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-[#4A4A4A]">Parent Settings</h2>
+          <h2 className="text-xl font-bold text-[#4A4A4A]">家長設定</h2>
           <button
             onClick={onClose}
             className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-xl active:scale-90 transition-transform"
@@ -26,7 +26,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
         {/* Default Mode */}
         <div className="mb-6">
           <label className="block text-sm font-semibold text-gray-600 mb-2">
-            Default Mode
+            預設模式
           </label>
           <div className="flex flex-col gap-2">
             {(["ask", "baby", "toddler"] as const).map((mode) => (
@@ -40,10 +40,10 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
                 }`}
               >
                 {mode === "ask"
-                  ? "Always Ask"
+                  ? "每次詢問"
                   : mode === "baby"
-                    ? "Baby Mode (1y)"
-                    : "Toddler Mode (2y)"}
+                    ? "寶寶模式（1歲）"
+                    : "幼兒模式（3歲）"}
               </button>
             ))}
           </div>
@@ -52,7 +52,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
         {/* Volume */}
         <div className="mb-6">
           <label className="block text-sm font-semibold text-gray-600 mb-2">
-            Volume: {Math.round(settings.volume * 100)}%
+            音量：{Math.round(settings.volume * 100)}%
           </label>
           <input
             type="range"
@@ -76,7 +76,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-semibold text-gray-600">
-              Play Timer Reminder
+              遊玩計時提醒
             </label>
             <button
               onClick={() =>
@@ -105,7 +105,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
                       : "bg-gray-100 text-gray-600"
                   }`}
                 >
-                  {min}m
+                  {min}分鐘
                 </button>
               ))}
             </div>

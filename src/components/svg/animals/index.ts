@@ -17,10 +17,10 @@ export interface AnimalInfo {
 }
 
 export const ANIMALS: AnimalInfo[] = [
-  { name: "cat", label: "Cat", soundFile: "/sounds/animals/cat.mp3", component: CatSvg, color: "#FFB74D" },
-  { name: "dog", label: "Dog", soundFile: "/sounds/animals/dog.mp3", component: DogSvg, color: "#A1887F" },
-  { name: "cow", label: "Cow", soundFile: "/sounds/animals/cow.mp3", component: CowSvg, color: "#F5F5F5" },
-  { name: "duck", label: "Duck", soundFile: "/sounds/animals/duck.mp3", component: DuckSvg, color: "#FFD54F" },
-  { name: "lion", label: "Lion", soundFile: "/sounds/animals/lion.mp3", component: LionSvg, color: "#FFB74D" },
-  { name: "elephant", label: "Elephant", soundFile: "/sounds/animals/elephant.mp3", component: ElephantSvg, color: "#90A4AE" },
+  { name: "cat", label: "貓咪", soundFile: "/sounds/animals/cat.mp3", component: CatSvg, color: "#FFB74D" },
+  { name: "dog", label: "小狗", soundFile: "/sounds/animals/dog.mp3", component: DogSvg, color: "#A1887F" },
+  { name: "cow", label: "乳牛", soundFile: "/sounds/animals/cow.mp3", component: CowSvg, color: "#F5F5F5" },
+  { name: "duck", label: "鴨子", soundFile: "/sounds/animals/duck.mp3", component: DuckSvg, color: "#FFD54F" },
+  { name: "lion", label: "獅子", soundFile: "/sounds/animals/lion.mp3", component: LionSvg, color: "#FFB74D" },
+  { name: "elephant", label: "大象", soundFile: "/sounds/animals/elephant.mp3", component: ElephantSvg, color: "#90A4AE" },
 ];

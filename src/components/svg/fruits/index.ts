@@ -15,9 +15,9 @@ export interface FruitInfo {
 }
 
 export const FRUITS: FruitInfo[] = [
-  { name: "apple", label: "Apple", component: AppleSvg, color: "#EF5350" },
-  { name: "banana", label: "Banana", component: BananaSvg, color: "#FFD54F" },
-  { name: "grape", label: "Grape", component: GrapeSvg, color: "#CE93D8" },
-  { name: "orange", label: "Orange", component: OrangeSvg, color: "#FFB74D" },
-  { name: "strawberry", label: "Strawberry", component: StrawberrySvg, color: "#EF5350" },
+  { name: "apple", label: "蘋果", component: AppleSvg, color: "#EF5350" },
+  { name: "banana", label: "香蕉", component: BananaSvg, color: "#FFD54F" },
+  { name: "grape", label: "葡萄", component: GrapeSvg, color: "#CE93D8" },
+  { name: "orange", label: "橘子", component: OrangeSvg, color: "#FFB74D" },
+  { name: "strawberry", label: "草莓", component: StrawberrySvg, color: "#EF5350" },
 ];

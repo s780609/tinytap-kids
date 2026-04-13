@@ -11,13 +11,13 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "TinyTap Kids",
-  description: "Safe touch games for toddlers aged 1-2",
-  applicationName: "TinyTap Kids",
+  title: "TinyTap 兒童樂園",
+  description: "專為幼兒設計的安全觸控遊戲 App",
+  applicationName: "TinyTap 兒童樂園",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "TinyTap Kids",
+    title: "TinyTap 兒童樂園",
   },
   other: {
     "mobile-web-app-capable": "yes",

@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TinyTap Kids",
+    name: "TinyTap 兒童樂園",
     short_name: "TinyTap",
-    description: "Safe touch games for toddlers aged 1-2",
+    description: "專為幼兒設計的安全觸控遊戲 App",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

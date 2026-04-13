@@ -20,9 +20,9 @@ export interface ShapeInfo {
 }
 
 export const SHAPES: ShapeInfo[] = [
-  { name: "circle", label: "Circle", voiceFile: "/sounds/voices/this-is-circle.mp3", component: CircleSvg, defaultColor: "#FF69B4" },
-  { name: "square", label: "Square", voiceFile: "/sounds/voices/this-is-square.mp3", component: SquareSvg, defaultColor: "#4FC3F7" },
-  { name: "triangle", label: "Triangle", voiceFile: "/sounds/voices/this-is-triangle.mp3", component: TriangleSvg, defaultColor: "#FFD54F" },
-  { name: "star", label: "Star", voiceFile: "/sounds/voices/this-is-star.mp3", component: StarSvg, defaultColor: "#FFB74D" },
-  { name: "heart", label: "Heart", voiceFile: "/sounds/voices/this-is-heart.mp3", component: HeartSvg, defaultColor: "#EF5350" },
+  { name: "circle", label: "圓形", voiceFile: "/sounds/voices/this-is-circle.mp3", component: CircleSvg, defaultColor: "#FF69B4" },
+  { name: "square", label: "正方形", voiceFile: "/sounds/voices/this-is-square.mp3", component: SquareSvg, defaultColor: "#4FC3F7" },
+  { name: "triangle", label: "三角形", voiceFile: "/sounds/voices/this-is-triangle.mp3", component: TriangleSvg, defaultColor: "#FFD54F" },
+  { name: "star", label: "星星", voiceFile: "/sounds/voices/this-is-star.mp3", component: StarSvg, defaultColor: "#FFB74D" },
+  { name: "heart", label: "愛心", voiceFile: "/sounds/voices/this-is-heart.mp3", component: HeartSvg, defaultColor: "#EF5350" },
 ];
