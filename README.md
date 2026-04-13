@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TinyTap 兒童樂園
 
-## Getting Started
+專為 1～3 歲幼兒設計的安全觸控遊戲 PWA，支援離線遊玩、可安裝至手機桌面。
 
-First, run the development server:
+## 功能特色
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 完整 PWA 支援（Android Chrome / PC Chrome 可安裝為獨立 App）
+- 離線可用（Service Worker 快取所有資源）
+- 全螢幕 standalone 模式
+- 大觸控區域、鮮豔色彩、無失敗懲罰、即時正面回饋
+- 家長設定（長按右上角）：預設模式、音量、遊玩計時提醒
+
+## 遊戲模式
+
+### 寶寶模式（適合 1 歲）
+
+- **氣球點點樂** — 點擊畫面任何地方爆出彩色氣球 + 粒子噴射 + 音效回饋
+
+### 幼兒模式（適合 3 歲）
+
+- **畫畫板** — 全螢幕 Canvas 繪畫，8 色色盤、3 種筆刷、橡皮擦、印章、撤銷、清除、背景色切換
+- **記憶翻牌** — 4x3 翻牌配對遊戲，6 對可愛動物 SVG
+- **數一數** — 隨機顯示 1～5 個水果，點選正確數字
+- **賽車** — Canvas 跑道自動捲動，左右移動收集金幣閃避障礙
+
+## 技術架構
+
+| 項目 | 技術 |
+|------|------|
+| 框架 | Next.js 15+ (App Router) |
+| PWA | Serwist (@serwist/next) |
+| 樣式 | Tailwind CSS v4 |
+| 音效 | Web Audio API 合成 + .mp3 檔案 |
+| 動畫 | CSS Animations + Canvas 粒子特效 |
+| 圖形 | Inline SVG React 元件 |
+| 狀態 | React Context + useState |
+
+## 專案結構
+
+```
+src/
+├── app/                    # Next.js App Router 頁面
+│   ├── baby/               # 寶寶模式
+│   ├── toddler/            # 幼兒模式
+│   │   ├── drawing/        # 畫畫板
+│   │   ├── memory/         # 記憶翻牌
+│   │   ├── counting/       # 數一數
+│   │   └── racing/         # 賽車
+│   ├── ~offline/           # 離線 fallback
+│   ├── sw.ts               # Service Worker
+│   └── manifest.ts         # PWA Manifest
+├── components/
+│   ├── baby/               # 氣球遊戲元件
+│   ├── toddler/            # 幼兒遊戲元件
+│   ├── svg/                # SVG 圖形 (shapes/animals/fruits)
+│   └── ui/                 # 共用 UI 元件
+├── lib/
+│   ├── audio/              # AudioManager + 合成音效
+│   ├── particles/          # Canvas 粒子引擎
+│   ├── settings/           # Context + localStorage
+│   └── utils/              # 顏色、隨機數工具
+└── public/
+    ├── icons/              # PWA 圖示
+    └── sounds/             # 音效檔案
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 開始使用
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# 安裝依賴
+npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# 開發模式
+npm run dev -- --webpack
 
-## Learn More
+# 建置
+npm run build
 
-To learn more about Next.js, take a look at the following resources:
+# 預覽 production
+npm start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> 注意：因 Serwist 尚未支援 Turbopack，開發與建置需使用 `--webpack` 旗標。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 離線測試
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. 執行 `npm run build && npm start`
+2. 開啟 Chrome → DevTools → Application → Service Worker 確認已註冊
+3. 斷網後重新整理，確認可正常遊玩
+4. Android Chrome 點選「新增到主畫面」可安裝為獨立 App
