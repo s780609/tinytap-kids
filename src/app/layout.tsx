@@ -3,6 +3,7 @@ import { Nunito } from "next/font/google";
 import "./globals.css";
 import { SettingsProvider } from "@/lib/settings/SettingsContext";
 import TimerOverlay from "@/components/ui/TimerOverlay";
+import RegisterSW from "@/components/ui/RegisterSW";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -47,6 +48,7 @@ export default function RootLayout({
         <SettingsProvider>
           {children}
           <TimerOverlay />
+          <RegisterSW />
         </SettingsProvider>
       </body>
     </html>
