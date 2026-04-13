@@ -78,7 +78,7 @@ export default function HomePage() {
         <BigButton color="#4FC3F7" onClick={() => handleModeSelect("toddler")}>
           <span className="text-5xl mb-2">⭐</span>
           <span>Toddler Mode</span>
-          <span className="text-base font-normal opacity-80">2 years old</span>
+          <span className="text-base font-normal opacity-80">3 years old</span>
         </BigButton>
       </div>
 

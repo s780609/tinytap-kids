@@ -17,27 +17,35 @@ export default function ToddlerModePage() {
 
       <div className="flex flex-col gap-4 w-full max-w-sm mt-2">
         <BigButton
-          color="#FFD54F"
-          onClick={() => router.push("/toddler/shapes")}
+          color="#FF69B4"
+          onClick={() => router.push("/toddler/drawing")}
         >
-          <span className="text-4xl mb-1">🔷</span>
-          <span className="text-[#4A4A4A]">Shape Match</span>
+          <span className="text-4xl mb-1">🎨</span>
+          <span className="text-white">Drawing Board</span>
         </BigButton>
 
         <BigButton
           color="#81C784"
-          onClick={() => router.push("/toddler/animals")}
+          onClick={() => router.push("/toddler/memory")}
         >
-          <span className="text-4xl mb-1">🐾</span>
-          <span className="text-[#4A4A4A]">Animal Sounds</span>
+          <span className="text-4xl mb-1">🃏</span>
+          <span className="text-white">Memory Match</span>
         </BigButton>
 
         <BigButton
-          color="#CE93D8"
-          onClick={() => router.push("/toddler/bubbles")}
+          color="#FFB74D"
+          onClick={() => router.push("/toddler/counting")}
         >
-          <span className="text-4xl mb-1">🫧</span>
-          <span className="text-[#4A4A4A]">Bubble Shapes</span>
+          <span className="text-4xl mb-1">🔢</span>
+          <span className="text-white">Counting</span>
+        </BigButton>
+
+        <BigButton
+          color="#EF5350"
+          onClick={() => router.push("/toddler/racing")}
+        >
+          <span className="text-4xl mb-1">🏎️</span>
+          <span className="text-white">Racing</span>
         </BigButton>
       </div>
     </div>
