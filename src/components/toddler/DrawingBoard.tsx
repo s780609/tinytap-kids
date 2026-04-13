@@ -41,7 +41,8 @@ export default function DrawingBoard() {
   const isDrawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const historyRef = useRef<ImageData[]>([]);
-  const toolbarHeight = 140;
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarHeight, setToolbarHeight] = useState(140);
 
   const getCtx = useCallback(() => {
     return canvasRef.current?.getContext("2d") ?? null;
@@ -109,6 +110,20 @@ export default function DrawingBoard() {
       ctx.putImageData(imageData, 0, 0);
     }
   }, [bgColor]);
+
+  // Track toolbar height with ResizeObserver
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = Math.ceil(entry.contentRect.height + 16); // + padding
+        setToolbarHeight((prev) => (prev !== h ? h : prev));
+      }
+    });
+    ro.observe(toolbar);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     audioManager.init();
@@ -244,13 +259,13 @@ export default function DrawingBoard() {
       />
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-2 p-2 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)]" style={{ height: toolbarHeight }}>
+      <div ref={toolbarRef} className="flex flex-col gap-2 p-2 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] shrink-0">
         {/* Row 1: Colors */}
-        <div className="flex items-center gap-1.5 justify-center">
+        <div className="flex items-center gap-1 justify-center">
           {COLORS.map((c) => (
             <button
               key={c}
-              className={`w-9 h-9 rounded-full border-3 transition-transform ${
+              className={`w-8 h-8 md:w-9 md:h-9 rounded-full border-3 transition-transform ${
                 color === c && !isEraser && !activeStamp
                   ? "border-gray-800 scale-115"
                   : "border-transparent"
@@ -267,12 +282,12 @@ export default function DrawingBoard() {
         </div>
 
         {/* Row 2: Tools */}
-        <div className="flex items-center gap-2 justify-center flex-wrap">
+        <div className="flex items-center gap-1.5 justify-center flex-wrap">
           {/* Brush sizes */}
           {BRUSH_SIZES.map((s) => (
             <button
               key={s}
-              className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${
+              className={`flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-xl transition-all ${
                 brushSize === s && !isEraser && !activeStamp
                   ? "bg-gray-200 ring-2 ring-gray-400"
                   : "bg-gray-50"
@@ -294,7 +309,7 @@ export default function DrawingBoard() {
 
           {/* Eraser */}
           <button
-            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
               isEraser ? "bg-pink-100 ring-2 ring-pink-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -308,7 +323,7 @@ export default function DrawingBoard() {
 
           {/* Stamps toggle */}
           <button
-            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
               showStamps ? "bg-yellow-100 ring-2 ring-yellow-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -322,7 +337,7 @@ export default function DrawingBoard() {
 
           {/* Templates toggle */}
           <button
-            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
               showTemplates ? "bg-green-100 ring-2 ring-green-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -336,7 +351,7 @@ export default function DrawingBoard() {
 
           {/* BG color */}
           <button
-            className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+            className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
               showBgPicker ? "bg-blue-100 ring-2 ring-blue-400" : "bg-gray-50"
             }`}
             onClick={() => {
@@ -352,7 +367,7 @@ export default function DrawingBoard() {
 
           {/* Undo */}
           <button
-            className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
+            className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
             onClick={handleUndo}
           >
             ↩️
@@ -360,7 +375,7 @@ export default function DrawingBoard() {
 
           {/* Clear */}
           <button
-            className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
+            className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gray-50 flex items-center justify-center text-lg active:scale-90 transition-transform"
             onClick={handleClear}
           >
             🗑️
@@ -373,7 +388,7 @@ export default function DrawingBoard() {
             {STAMPS.map((s) => (
               <button
                 key={s.emoji}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all ${
+                className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-xl transition-all ${
                   activeStamp === s.emoji
                     ? "bg-yellow-200 ring-2 ring-yellow-500 scale-110"
                     : "bg-gray-50"
@@ -429,7 +444,7 @@ export default function DrawingBoard() {
             {BG_COLORS.map((c) => (
               <button
                 key={c}
-                className={`w-10 h-10 rounded-full border-2 transition-transform ${
+                className={`w-9 h-9 md:w-10 md:h-10 rounded-full border-2 transition-transform ${
                   bgColor === c ? "border-gray-600 scale-110" : "border-gray-300"
                 }`}
                 style={{ backgroundColor: c }}
