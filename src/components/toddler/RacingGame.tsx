@@ -35,7 +35,6 @@ export default function RacingGame() {
   const { settings } = useSettings();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
-  const [wheelAngle, setWheelAngle] = useState(0);
   const [flyingCoins, setFlyingCoins] = useState<FlyingCoin[]>([]);
   const [phase, setPhase] = useState<GamePhase>("countdown");
   const [countdown, setCountdown] = useState(3);
@@ -55,18 +54,9 @@ export default function RacingGame() {
     roadLeft: 0,
     roadWidth: 300,
     playing: false,
+    holdDir: 0 as -1 | 0 | 1,
   });
   const animRef = useRef<number | null>(null);
-
-  // Steering state (not React state for perf — wheelAngle is synced via setWheelAngle)
-  const steerRef = useRef({
-    dragging: false,
-    startPointerAngle: 0,
-    startWheelAngle: 0,
-    currentAngle: 0,
-    centerX: 0,
-    centerY: 0,
-  });
 
   const computeRoad = useCallback((width: number) => {
     const roadWidth = Math.min(width * 0.8, 300);
@@ -79,9 +69,7 @@ export default function RacingGame() {
     setCountdown(3);
     setScore(0);
     setTimeLeft(GAME_DURATION);
-    setWheelAngle(0);
     setFlyingCoins([]);
-    steerRef.current.currentAngle = 0;
 
     const gs = gameStateRef.current;
     gs.carX = 0.5;
@@ -92,6 +80,7 @@ export default function RacingGame() {
     gs.speed = ROAD_SPEED_INITIAL;
     gs.score = 0;
     gs.playing = false;
+    gs.holdDir = 0;
     nextItemId = 0;
 
     let c = 3;
@@ -252,6 +241,11 @@ export default function RacingGame() {
       gs.roadOffset += gs.speed;
     }
 
+    // Apply hold direction to target position
+    if (gs.holdDir !== 0) {
+      gs.targetCarX = Math.max(0.1, Math.min(0.9, gs.targetCarX + gs.holdDir * 0.018));
+    }
+
     // Smooth car movement — lerp toward target
     const diff = gs.targetCarX - gs.carX;
     gs.carX += diff * 0.12; // smooth interpolation factor
@@ -320,47 +314,14 @@ export default function RacingGame() {
     animRef.current = requestAnimationFrame(gameLoop);
   }, [draw]);
 
-  // --- Steering wheel ---
-  const getPointerAngle = (clientX: number, clientY: number) => {
-    const s = steerRef.current;
-    const dx = clientX - s.centerX;
-    const dy = clientY - s.centerY;
-    return Math.atan2(dy, dx) * (180 / Math.PI);
-  };
-
-  const onWheelPointerDown = useCallback((e: React.PointerEvent) => {
-    const el = e.currentTarget as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    const s = steerRef.current;
-    s.centerX = rect.left + rect.width / 2;
-    s.centerY = rect.top + rect.height / 2;
-    s.dragging = true;
-    s.startPointerAngle = getPointerAngle(e.clientX, e.clientY);
-    s.startWheelAngle = s.currentAngle;
+  // --- Direction buttons (hold to move) ---
+  const startHold = useCallback((dir: -1 | 1) => (e: React.PointerEvent) => {
+    gameStateRef.current.holdDir = dir;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }, []);
 
-  const onWheelPointerMove = useCallback((e: React.PointerEvent) => {
-    const s = steerRef.current;
-    if (!s.dragging) return;
-
-    const pAngle = getPointerAngle(e.clientX, e.clientY);
-    let delta = pAngle - s.startPointerAngle;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
-
-    const newAngle = Math.max(-90, Math.min(90, s.startWheelAngle + delta));
-    s.currentAngle = newAngle;
-
-    // Map angle to car target position: -90 → left edge, 0 → center, 90 → right edge
-    const normalized = (newAngle + 90) / 180; // 0..1
-    gameStateRef.current.targetCarX = 0.1 + normalized * 0.8; // keep within road
-
-    setWheelAngle(newAngle);
-  }, []);
-
-  const onWheelPointerUp = useCallback(() => {
-    steerRef.current.dragging = false;
+  const stopHold = useCallback(() => {
+    gameStateRef.current.holdDir = 0;
   }, []);
 
   // Animate flying coins
@@ -456,41 +417,33 @@ export default function RacingGame() {
         );
       })}
 
-      {/* Steering wheel */}
+      {/* Direction buttons */}
       <div
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 select-none cursor-grab active:cursor-grabbing"
+        className="fixed bottom-8 left-0 right-0 z-20 flex justify-between px-6 select-none"
         style={{ touchAction: "none" }}
-        onPointerDown={onWheelPointerDown}
-        onPointerMove={onWheelPointerMove}
-        onPointerUp={onWheelPointerUp}
-        onPointerCancel={onWheelPointerUp}
       >
-        <svg
-          width="120"
-          height="120"
-          viewBox="0 0 120 120"
-          style={{
-            transform: `rotate(${wheelAngle}deg)`,
-            filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.25))",
-          }}
+        <button
+          type="button"
+          aria-label="左"
+          onPointerDown={startHold(-1)}
+          onPointerUp={stopHold}
+          onPointerCancel={stopHold}
+          onPointerLeave={stopHold}
+          className="w-24 h-24 rounded-full bg-[#4FC3F7] text-white text-5xl font-black shadow-xl active:scale-90 active:bg-[#039BE5] transition-transform flex items-center justify-center"
         >
-          {/* Outer ring */}
-          <circle cx="60" cy="60" r="56" fill="#555" stroke="#444" strokeWidth="6" />
-          <circle cx="60" cy="60" r="50" fill="none" stroke="#666" strokeWidth="4" />
-          {/* Inner hub */}
-          <circle cx="60" cy="60" r="20" fill="#444" />
-          <circle cx="60" cy="60" r="16" fill="#555" />
-          {/* Car icon */}
-          <text x="60" y="63" textAnchor="middle" dominantBaseline="middle" fontSize="14" fill="white">
-            🏎️
-          </text>
-          {/* Spokes */}
-          <line x1="60" y1="40" x2="60" y2="10" stroke="#444" strokeWidth="6" strokeLinecap="round" />
-          <line x1="42" y1="70" x2="16" y2="86" stroke="#444" strokeWidth="6" strokeLinecap="round" />
-          <line x1="78" y1="70" x2="104" y2="86" stroke="#444" strokeWidth="6" strokeLinecap="round" />
-          {/* Top marker */}
-          <circle cx="60" cy="8" r="5" fill="#EF5350" />
-        </svg>
+          ◀
+        </button>
+        <button
+          type="button"
+          aria-label="右"
+          onPointerDown={startHold(1)}
+          onPointerUp={stopHold}
+          onPointerCancel={stopHold}
+          onPointerLeave={stopHold}
+          className="w-24 h-24 rounded-full bg-[#4FC3F7] text-white text-5xl font-black shadow-xl active:scale-90 active:bg-[#039BE5] transition-transform flex items-center justify-center"
+        >
+          ▶
+        </button>
       </div>
 
       {/* Countdown overlay */}
