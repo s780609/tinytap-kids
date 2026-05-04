@@ -47,6 +47,14 @@ export default function ToddlerModePage() {
           <span className="text-4xl mb-1">🏎️</span>
           <span className="text-white">賽車</span>
         </BigButton>
+
+        <BigButton
+          color="#9575CD"
+          onClick={() => router.push("/toddler/story")}
+        >
+          <span className="text-4xl mb-1">📖</span>
+          <span className="text-white">故事書</span>
+        </BigButton>
       </div>
     </div>
   );
