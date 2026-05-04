@@ -9,26 +9,19 @@ export const uglyDucklingStory: Story = {
   pages: [
     {
       text: "在一個陽光明媚的夏日，農場裡充滿了生機。綠油油的草地上點綴著五顏六色的野花，蜜蜂和蝴蝶在花間飛舞。在小池塘邊，鴨媽媽正在她舒適的巢中孵蛋，巢是用柔軟的羽毛和乾草築成的。",
-      bgClass: "bg-gradient-to-b from-sky-300 via-sky-200 to-emerald-300",
-      decoration: (
-        <>
-          <div className="absolute bottom-0 left-0 right-0 h-[45%] bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-t-[40%]" />
-          <div className="absolute bottom-[6%] left-[12%] w-44 h-24 bg-blue-400/70 rounded-[50%] blur-sm" />
-          <div className="absolute bottom-[14%] left-1/2 -translate-x-1/2 w-36 h-16 bg-amber-700 rounded-[50%] shadow-inner" />
-        </>
-      ),
+      bgClass: "bg-sky-200",
+      image: "/stories/ugly-duckling/page1.jpg",
       sprites: [
-        { id: "sun", emoji: "☀️", x: 18, y: 16, size: 64, reaction: "✨" },
-        { id: "cloud1", emoji: "☁️", x: 72, y: 12, size: 56, reaction: "💨" },
-        { id: "cloud2", emoji: "☁️", x: 88, y: 24, size: 40, reaction: "💨" },
-        { id: "butterfly1", emoji: "🦋", x: 30, y: 42, size: 40, bounce: true, reaction: "🌸" },
-        { id: "butterfly2", emoji: "🦋", x: 65, y: 38, size: 36, bounce: true, reaction: "🌸" },
-        { id: "bee", emoji: "🐝", x: 80, y: 50, size: 36, bounce: true, reaction: "🍯" },
-        { id: "flower1", emoji: "🌼", x: 12, y: 80, size: 38 },
-        { id: "flower2", emoji: "🌷", x: 88, y: 82, size: 38 },
-        { id: "flower3", emoji: "🌻", x: 25, y: 88, size: 36 },
-        { id: "mom", emoji: "🦆", x: 50, y: 65, size: 90, label: "鴨媽媽", reaction: "💛" },
-        { id: "egg-big", emoji: "🥚", x: 50, y: 78, size: 46, reaction: "❓" },
+        { id: "sun", emoji: "☀️", x: 47, y: 12, size: 80, reaction: "✨", hidden: true, label: "太陽" },
+        { id: "bee1", emoji: "🐝", x: 53, y: 16, size: 60, reaction: "🍯", hidden: true, label: "蜜蜂" },
+        { id: "bee2", emoji: "🐝", x: 41, y: 33, size: 60, reaction: "🍯", hidden: true, label: "蜜蜂" },
+        { id: "tree-left", emoji: "🌳", x: 12, y: 38, size: 100, reaction: "🍃", hidden: true, label: "樹" },
+        { id: "tree-right", emoji: "🌳", x: 92, y: 35, size: 100, reaction: "🍃", hidden: true, label: "樹" },
+        { id: "mom", emoji: "🦆", x: 63, y: 65, size: 110, label: "鴨媽媽", reaction: "💛", hidden: true },
+        { id: "ducklings", emoji: "🐤", x: 57, y: 80, size: 80, reaction: "🎵", hidden: true, label: "小鴨們" },
+        { id: "flowers-left", emoji: "🌼", x: 12, y: 80, size: 110, reaction: "🌸", hidden: true, label: "花" },
+        { id: "flowers-bottom", emoji: "🌷", x: 50, y: 92, size: 100, reaction: "🌸", hidden: true, label: "花" },
+        { id: "flowers-right", emoji: "🌻", x: 88, y: 82, size: 100, reaction: "🌸", hidden: true, label: "花" },
       ],
     },
     {

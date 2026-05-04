@@ -10,11 +10,13 @@ export interface SceneSprite {
   reaction?: string;
   bounce?: boolean;
   filter?: string;
+  hidden?: boolean;
 }
 
 export interface StoryPage {
   text: string;
   bgClass: string;
+  image?: string;
   decoration?: ReactNode;
   sprites: SceneSprite[];
 }

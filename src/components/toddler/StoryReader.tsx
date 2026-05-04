@@ -149,30 +149,56 @@ export default function StoryReader({ story }: { story: Story }) {
       <div
         key={pageIndex}
         className={`relative flex-1 overflow-hidden animate-slide-up ${page.bgClass}`}
+        style={
+          page.image
+            ? {
+                backgroundImage: `url(${page.image})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
       >
         {page.decoration}
 
-        {page.sprites.map((sprite) => (
-          <button
-            key={sprite.id}
-            type="button"
-            onClick={(e) => handleSpriteClick(sprite, e)}
-            className={`absolute select-none active:scale-110 transition-transform leading-none ${
-              sprite.bounce ? "animate-bounce-slow" : ""
-            }`}
-            style={{
-              left: `${sprite.x}%`,
-              top: `${sprite.y}%`,
-              fontSize: `${sprite.size}px`,
-              transform: sprite.bounce ? undefined : "translate(-50%, -50%)",
-              filter: sprite.filter,
-              textShadow: "0 2px 8px rgba(0,0,0,0.18)",
-            }}
-            aria-label={sprite.label || sprite.emoji}
-          >
-            {sprite.emoji}
-          </button>
-        ))}
+        {page.sprites.map((sprite) =>
+          sprite.hidden ? (
+            <button
+              key={sprite.id}
+              type="button"
+              onClick={(e) => handleSpriteClick(sprite, e)}
+              className="absolute rounded-full select-none active:scale-110 transition-transform animate-pulse-glow"
+              style={{
+                left: `${sprite.x}%`,
+                top: `${sprite.y}%`,
+                width: `${sprite.size}px`,
+                height: `${sprite.size}px`,
+                transform: "translate(-50%, -50%)",
+              }}
+              aria-label={sprite.label || sprite.emoji}
+            />
+          ) : (
+            <button
+              key={sprite.id}
+              type="button"
+              onClick={(e) => handleSpriteClick(sprite, e)}
+              className={`absolute select-none active:scale-110 transition-transform leading-none ${
+                sprite.bounce ? "animate-bounce-slow" : ""
+              }`}
+              style={{
+                left: `${sprite.x}%`,
+                top: `${sprite.y}%`,
+                fontSize: `${sprite.size}px`,
+                transform: sprite.bounce ? undefined : "translate(-50%, -50%)",
+                filter: sprite.filter,
+                textShadow: "0 2px 8px rgba(0,0,0,0.18)",
+              }}
+              aria-label={sprite.label || sprite.emoji}
+            >
+              {sprite.emoji}
+            </button>
+          )
+        )}
 
         {/* Page indicator (top-right) */}
         <div className="absolute top-4 right-4 bg-white/85 backdrop-blur rounded-full px-4 py-1.5 shadow-md text-sm font-black text-[#4A4A4A] z-10">
