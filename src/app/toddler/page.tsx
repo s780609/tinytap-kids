@@ -8,7 +8,7 @@ export default function ToddlerModePage() {
   const router = useRouter();
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 gap-5 relative">
+    <div className="flex flex-col items-center h-screen overflow-y-auto p-6 pt-20 pb-10 gap-5 relative">
       <BackButton />
 
       <h1 className="text-3xl md:text-4xl font-black text-[#4FC3F7] animate-bounce-in">
