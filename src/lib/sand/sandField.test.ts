@@ -83,12 +83,42 @@ test("pourField 在指定位置加沙並回傳實際加入量", () => {
   assert.ok(f.h[30] > f.h[10], "倒沙點應比遠處高");
 });
 
-test("TOOL_PROFILES 每個模具的底部輪廓都在工具寬度內回傳非負深度", () => {
+test("TOOL_PROFILES 每個工具的塑形面在寬度內都回傳有限數值；壓平為實心（>=0），其他模具為凹槽（<=0）", () => {
   for (const tool of TOOL_PROFILES) {
     assert.ok(tool.halfWidth > 0);
+    let hasCavity = false;
     for (let dx = -tool.halfWidth; dx <= tool.halfWidth; dx += 1) {
       const d = tool.profile(dx);
-      assert.ok(Number.isFinite(d) && d >= 0, `${tool.id} 在 dx=${dx} 回傳 ${d}`);
+      assert.ok(Number.isFinite(d), `${tool.id} 在 dx=${dx} 回傳 ${d}`);
+      if (tool.id === "flat") assert.ok(d >= 0, "壓平應為實心");
+      else {
+        assert.ok(d <= 0, `${tool.id} 應為凹槽`);
+        if (d < 0) hasCavity = true;
+      }
     }
+    if (tool.id !== "flat") assert.ok(hasCavity, `${tool.id} 應有凹槽`);
   }
+});
+
+test("模具壓過的沙會被標記為紮實，崩落時可保持較陡的形狀", () => {
+  const f = createSandField(80, 300);
+  f.h.fill(100);
+  // 模具：中間 10 欄凹槽高 20，兩側為 0 → 沙面應形成一個 20 高的方塊
+  carveField(f, 40, 20, (dx) => (Math.abs(dx) <= 5 ? 60 : 40), 0, true);
+  assert.ok(f.packed[40] === 1 && f.packed[25] === 1);
+  assert.ok(f.packed[10] === 0, "沒被模具碰到的欄不該紮實");
+  for (let i = 0; i < 60; i++) relaxField(f, 2);
+  const step = f.h[40] - f.h[32];
+  assert.ok(step > 12, `紮實的沙應保持台階，實際差 ${step}`);
+});
+
+test("手指挖過或倒沙的欄會解除紮實", () => {
+  const f = createSandField(200, 300);
+  f.h.fill(100);
+  f.packed.fill(1);
+  carveField(f, 100, 3, () => 50, 0, false);
+  assert.equal(f.packed[100], 0);
+  pourField(f, 20, 2, 10);
+  assert.equal(f.packed[20], 0);
+  assert.equal(f.packed[190], 1, "沒碰到的欄維持紮實");
 });

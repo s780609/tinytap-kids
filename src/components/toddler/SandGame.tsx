@@ -54,10 +54,11 @@ function resampleField(
   maxH: number
 ): SandField {
   if (!old || old.h.length < 2) return createSandField(cols, maxH);
-  const f: SandField = { h: new Float64Array(cols), maxH };
+  const f: SandField = { h: new Float64Array(cols), packed: new Uint8Array(cols), maxH };
   for (let i = 0; i < cols; i++) {
     const src = Math.round((i * (old.h.length - 1)) / Math.max(1, cols - 1));
     f.h[i] = Math.min(maxH, old.h[src]);
+    f.packed[i] = old.packed[src];
   }
   return f;
 }
@@ -85,7 +86,7 @@ function makeSandPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   return ctx.createPattern(off, "repeat");
 }
 
-/** 工具底部最深處（px），用來避免工具壓穿桌面 */
+/** 工具塑形面最深處（px，相對底緣），用來避免工具壓穿桌面；倒扣模具為 0 */
 const toolMaxDepth = (tool: ToolProfile) => {
   let m = 0;
   for (let dx = -tool.halfWidth; dx <= tool.halfWidth; dx += 2) {
@@ -225,7 +226,8 @@ export default function SandGame() {
         xToCol(g, x),
         tool.halfWidth / COL_W,
         (dxCols) => g.tableTop - (y + tool.profile(dxCols * COL_W)),
-        dir
+        dir,
+        true
       );
       if (moved > 1) {
         const n = Math.min(2, Math.ceil(moved / 10));
@@ -436,14 +438,21 @@ export default function SandGame() {
         ctx.textBaseline = "middle";
         ctx.fillText("🪣", p.x, p.y - 22);
       } else {
+        // 模具剖面：外側是杯壁，底緣在 p.y，凹槽沿 profile 描出（透明，看得到沙填進去）
         const tool = m.tool;
         const hw = tool.halfWidth;
+        const wall = 8;
+        const top = p.y - tool.bodyHeight;
         ctx.beginPath();
-        ctx.moveTo(p.x - hw, p.y - tool.bodyHeight);
-        ctx.lineTo(p.x + hw, p.y - tool.bodyHeight);
+        ctx.moveTo(p.x - hw - wall, p.y);
+        ctx.lineTo(p.x - hw - wall, top);
+        ctx.lineTo(p.x + hw + wall, top);
+        ctx.lineTo(p.x + hw + wall, p.y);
+        ctx.lineTo(p.x + hw, p.y);
         for (let dx = hw; dx >= -hw; dx -= 2) {
           ctx.lineTo(p.x + dx, p.y + tool.profile(dx));
         }
+        ctx.lineTo(p.x - hw, p.y);
         ctx.closePath();
         ctx.fillStyle = tool.color;
         ctx.fill();
@@ -453,7 +462,7 @@ export default function SandGame() {
         ctx.stroke();
         // 把手
         ctx.beginPath();
-        ctx.roundRect(p.x - 14, p.y - tool.bodyHeight - 18, 28, 20, 8);
+        ctx.roundRect(p.x - 14, top - 18, 28, 20, 8);
         ctx.fill();
         ctx.stroke();
       }

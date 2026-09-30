@@ -6,8 +6,13 @@
 
 export interface SandField {
   h: Float64Array;
+  /** 1 = 被模具壓過的紮實沙，崩落時可維持較陡的形狀 */
+  packed: Uint8Array;
   maxH: number;
 }
+
+/** 紮實沙允許的高度差倍率 */
+const PACKED_MULT = 5;
 
 export interface ToolProfile {
   id: string;
@@ -16,9 +21,12 @@ export interface ToolProfile {
   color: string;
   /** 工具半寬（px） */
   halfWidth: number;
-  /** 工具本體高度（px），從中心往上畫 */
+  /** 工具本體高度（px），從底緣往上畫 */
   bodyHeight: number;
-  /** 回傳工具中心以下、距離 dx（px）處底部的深度（px，>= 0） */
+  /**
+   * 回傳距離中心 dx（px）處塑形面相對工具底緣的位置（px）。
+   * 正值 = 在底緣下方（實心，往下壓沙）；負值 = 在底緣上方（倒扣模具的凹槽）。
+   */
   profile: (dx: number) => number;
 }
 
@@ -32,7 +40,7 @@ export function createSandField(cols: number, maxH: number): SandField {
     const d = (i - center) / sigma;
     h[i] = base + bump * Math.exp(-d * d);
   }
-  return { h, maxH };
+  return { h, packed: new Uint8Array(cols), maxH };
 }
 
 export function totalSand(f: SandField): number {
@@ -53,16 +61,18 @@ export function relaxField(
   to = f.h.length
 ): void {
   const h = f.h;
+  const packed = f.packed;
   const start = Math.max(0, from);
   const end = Math.min(h.length, to);
   const step = (i: number, j: number) => {
+    const limit = packed[i] && packed[j] ? maxDiff * PACKED_MULT : maxDiff;
     const d = h[i] - h[j];
-    if (d > maxDiff) {
-      const t = ((d - maxDiff) / 2) * rate;
+    if (d > limit) {
+      const t = ((d - limit) / 2) * rate;
       h[i] -= t;
       h[j] += t;
-    } else if (-d > maxDiff) {
-      const t = ((-d - maxDiff) / 2) * rate;
+    } else if (-d > limit) {
+      const t = ((-d - limit) / 2) * rate;
       h[j] -= t;
       h[i] += t;
     }
@@ -91,6 +101,7 @@ function depositSide(
     const put = Math.min(want, room, remaining);
     if (put > 0) {
       h[i] += put;
+      f.packed[i] = 0;
       remaining -= put;
     }
   }
@@ -101,6 +112,7 @@ function depositSide(
     if (room > 0) {
       const put = Math.min(room, remaining);
       h[i] += put;
+      f.packed[i] = 0;
       remaining -= put;
     }
     i += dir;
@@ -111,6 +123,7 @@ function depositSide(
  * 用工具「壓 / 挖」沙：範圍 [centerCol - halfWidthCols, centerCol + halfWidthCols] 內，
  * 每欄沙高被截斷到 cap(dxCols)；多出的沙依 dir 堆到外側。
  * dir > 0.3 只堆右邊、dir < -0.3 只堆左邊，否則兩側平分。
+ * pack 為 true 時（模具）範圍內的沙標記為紮實；false（手指）則解除紮實。
  * 回傳被移動的沙量。
  */
 export function carveField(
@@ -118,7 +131,8 @@ export function carveField(
   centerCol: number,
   halfWidthCols: number,
   cap: (dxCols: number) => number,
-  dir: number
+  dir: number,
+  pack = false
 ): number {
   const h = f.h;
   const c = Math.round(centerCol);
@@ -132,6 +146,7 @@ export function carveField(
       excess += h[i] - allowed;
       h[i] = allowed;
     }
+    f.packed[i] = pack ? 1 : 0;
   }
   if (excess <= 0) return 0;
 
@@ -175,6 +190,7 @@ export function pourField(
     const put = Math.min(want, f.maxH - h[i]);
     if (put > 0) {
       h[i] += put;
+      f.packed[i] = 0;
       added += put;
     }
   }
@@ -196,11 +212,12 @@ export const TOOL_PROFILES: ToolProfile[] = [
     label: "城堡",
     emoji: "🏰",
     color: "#EF5350",
-    halfWidth: 60,
-    bodyHeight: 30,
+    halfWidth: 65,
+    bodyHeight: 58,
+    // 倒扣的城堡模具：5 段，塔（高 46）與城牆（高 28）交錯，最外側為模具邊緣
     profile: (dx) => {
-      const tooth = Math.floor((dx + 60) / 24) % 2 === 0;
-      return tooth ? 24 : 8;
+      const seg = Math.floor((dx + 65) / 26);
+      return seg % 2 === 0 ? -46 : -28;
     },
   },
   {
@@ -209,16 +226,16 @@ export const TOOL_PROFILES: ToolProfile[] = [
     emoji: "🌊",
     color: "#81C784",
     halfWidth: 54,
-    bodyHeight: 26,
-    profile: (dx) => 16 + 9 * Math.sin(dx / 9),
+    bodyHeight: 44,
+    profile: (dx) => -(22 + 9 * Math.sin(dx / 9)),
   },
   {
-    id: "bowl",
-    label: "圓碗",
-    emoji: "🥣",
+    id: "dome",
+    label: "小山",
+    emoji: "⛰️",
     color: "#FFD54F",
     halfWidth: 42,
-    bodyHeight: 18,
-    profile: (dx) => Math.sqrt(Math.max(0, 42 * 42 - dx * dx)),
+    bodyHeight: 54,
+    profile: (dx) => -Math.sqrt(Math.max(0, 42 * 42 - dx * dx)),
   },
 ];
