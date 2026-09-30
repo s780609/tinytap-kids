@@ -1,0 +1,666 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { audioManager } from "@/lib/audio/AudioManager";
+import { useSettings } from "@/lib/settings/SettingsContext";
+import {
+  BALL_R,
+  LANE_X,
+  TABLE_H,
+  TABLE_W,
+  createTable,
+  flipperTip,
+  launchBall,
+  resetBall,
+  stepTable,
+  type Flipper,
+  type Table,
+} from "@/lib/pinball/pinballPhysics";
+
+const TOTAL_BALLS = 5;
+/** 進檯面後這段時間內掉球會免費還一顆，避免一發射就沒了 */
+const BALL_SAVE_SECONDS = 8;
+const HUD_TOP = 64;
+const CONTROLS_H = 124;
+
+interface View {
+  w: number;
+  h: number;
+  dpr: number;
+  scale: number;
+  ox: number;
+  oy: number;
+}
+
+interface Popup {
+  x: number;
+  y: number;
+  text: string;
+  t: number;
+}
+
+const PLANET_COLORS: Record<string, [string, string]> = {
+  "planet-a": ["#FF80AB", "#C51162"],
+  "planet-b": ["#80D8FF", "#0277BD"],
+  "planet-c": ["#FFD180", "#E65100"],
+  "kicker-l": ["#B9F6CA", "#00C853"],
+  "kicker-r": ["#B9F6CA", "#00C853"],
+};
+
+function starPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    const px = x + Math.cos(a) * rr;
+    const py = y + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+export default function PinballGame() {
+  const { settings } = useSettings();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [score, setScore] = useState(0);
+  const [ballsLeft, setBallsLeft] = useState(TOTAL_BALLS);
+  const [canLaunch, setCanLaunch] = useState(true);
+  const [gameOver, setGameOver] = useState(false);
+  const [pressed, setPressed] = useState({ left: false, right: false });
+  const [banner, setBanner] = useState<string | null>(null);
+
+  const tableRef = useRef<Table | null>(null);
+  const viewRef = useRef<View | null>(null);
+  const staticRef = useRef<HTMLCanvasElement | null>(null);
+  const inputRef = useRef({ left: false, right: false });
+  const pointersRef = useRef(new Map<number, "left" | "right">());
+  const keysRef = useRef({ left: false, right: false });
+  const scoreRef = useRef(0);
+  const ballsRef = useRef(TOTAL_BALLS);
+  const overRef = useRef(false);
+  const canLaunchRef = useRef(true);
+  const flashRef = useRef(new Map<string, number>());
+  const popupsRef = useRef<Popup[]>([]);
+  const trailRef = useRef<{ x: number; y: number }[]>([]);
+  const shakeRef = useRef(0);
+  const saveUntilRef = useRef(0);
+  const timeRef = useRef(0);
+  const serveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    audioManager.init();
+    audioManager.setVolume(settings.volume);
+  }, [settings.volume]);
+
+  const showBanner = useCallback((text: string, ms = 1600) => {
+    setBanner(text);
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    bannerTimerRef.current = setTimeout(() => setBanner(null), ms);
+  }, []);
+
+  const syncInput = useCallback(() => {
+    let left = keysRef.current.left;
+    let right = keysRef.current.right;
+    for (const side of pointersRef.current.values()) {
+      if (side === "left") left = true;
+      else right = true;
+    }
+    const prev = inputRef.current;
+    if (prev.left !== left || prev.right !== right) {
+      inputRef.current = { left, right };
+      setPressed({ left, right });
+    }
+  }, []);
+
+  const launch = useCallback(() => {
+    const table = tableRef.current;
+    if (!table || overRef.current) return false;
+    if (launchBall(table, 1200 + Math.random() * 150)) {
+      audioManager.whoosh();
+      canLaunchRef.current = false;
+      setCanLaunch(false);
+      return true;
+    }
+    return false;
+  }, []);
+
+  /** 建立新檯面並重置所有 ref 狀態（不動 React state） */
+  const initTable = useCallback(() => {
+    const table = createTable();
+    resetBall(table);
+    tableRef.current = table;
+    scoreRef.current = 0;
+    ballsRef.current = TOTAL_BALLS;
+    overRef.current = false;
+    canLaunchRef.current = true;
+    popupsRef.current = [];
+    trailRef.current = [];
+    flashRef.current.clear();
+  }, []);
+
+  const startGame = useCallback(() => {
+    initTable();
+    setScore(0);
+    setBallsLeft(TOTAL_BALLS);
+    setCanLaunch(true);
+    setGameOver(false);
+  }, [initTable]);
+
+  // ---------- 靜態底圖（星空、檯面、霓虹牆）只在尺寸改變時重畫 ----------
+  const buildStatic = useCallback((view: View, table: Table) => {
+    const off = document.createElement("canvas");
+    off.width = Math.round(view.w * view.dpr);
+    off.height = Math.round(view.h * view.dpr);
+    const ctx = off.getContext("2d");
+    if (!ctx) return null;
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+
+    // 太空背景
+    const bg = ctx.createLinearGradient(0, 0, 0, view.h);
+    bg.addColorStop(0, "#05071A");
+    bg.addColorStop(1, "#1A0B3D");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, view.w, view.h);
+    let seed = 7;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < 140; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.25 + rand() * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(rand() * view.w, rand() * view.h, rand() * 1.4 + 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 以下用檯面座標
+    ctx.setTransform(
+      view.dpr * view.scale,
+      0,
+      0,
+      view.dpr * view.scale,
+      view.dpr * view.ox,
+      view.dpr * view.oy
+    );
+
+    // 檯面底色
+    ctx.beginPath();
+    ctx.moveTo(10, TABLE_H);
+    ctx.lineTo(10, 200);
+    ctx.arc(200, 200, 190, Math.PI, Math.PI * 2);
+    ctx.lineTo(390, TABLE_H);
+    ctx.closePath();
+    const field = ctx.createLinearGradient(0, 0, 0, TABLE_H);
+    field.addColorStop(0, "#1B1F5E");
+    field.addColorStop(0.6, "#120E3F");
+    field.addColorStop(1, "#0A0826");
+    ctx.fillStyle = field;
+    ctx.fill();
+
+    // 星雲
+    ctx.save();
+    ctx.clip();
+    const nebula = (x: number, y: number, r: number, color: string) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    };
+    nebula(90, 170, 170, "rgba(213,0,249,0.28)");
+    nebula(290, 330, 190, "rgba(0,229,255,0.2)");
+    nebula(150, 540, 170, "rgba(255,64,129,0.18)");
+    // 軌道環裝飾
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 2;
+    for (const r of [70, 120, 170]) {
+      ctx.beginPath();
+      ctx.ellipse(185, 300, r * 1.3, r * 0.55, -0.35, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // 發射軌道
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(LANE_X, 170, 390 - LANE_X, TABLE_H - 170);
+    ctx.fillStyle = "rgba(0,229,255,0.35)";
+    for (let y = 250; y < TABLE_H - 60; y += 60) {
+      ctx.beginPath();
+      ctx.moveTo(375, y);
+      ctx.lineTo(368, y + 12);
+      ctx.lineTo(382, y + 12);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 霓虹牆
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    const strokeWalls = (width: number, color: string, blur: number) => {
+      ctx.shadowColor = "#00E5FF";
+      ctx.shadowBlur = blur;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      for (const w of table.walls) {
+        ctx.moveTo(w.ax, w.ay);
+        ctx.lineTo(w.bx, w.by);
+      }
+      ctx.stroke();
+    };
+    strokeWalls(6, "rgba(0,229,255,0.55)", 14);
+    strokeWalls(2.5, "#E0FFFF", 0);
+    ctx.shadowBlur = 0;
+
+    return off;
+  }, []);
+
+  const handleResize = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    const canvas = canvasRef.current;
+    const table = tableRef.current;
+    if (!wrapper || !canvas || !table) return;
+    const w = wrapper.clientWidth;
+    const h = wrapper.clientHeight;
+    if (w < 40 || h < 40) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const availH = h - HUD_TOP - CONTROLS_H;
+    const scale = Math.min(w / TABLE_W, availH / TABLE_H);
+    const view: View = {
+      w,
+      h,
+      dpr,
+      scale,
+      ox: (w - TABLE_W * scale) / 2,
+      oy: HUD_TOP + (availH - TABLE_H * scale) / 2,
+    };
+    viewRef.current = view;
+    staticRef.current = buildStatic(view, table);
+  }, [buildStatic]);
+
+  // ---------- 主迴圈 ----------
+  useEffect(() => {
+    // 初始 state 已是新局的值，這裡只需要建立檯面
+    initTable();
+    handleResize();
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const ro = new ResizeObserver(() => handleResize());
+    ro.observe(wrapper);
+
+    const addScore = (n: number) => {
+      scoreRef.current += n;
+      setScore(scoreRef.current);
+    };
+
+    const update = (dt: number) => {
+      const table = tableRef.current;
+      if (!table || overRef.current) return;
+      const events = stepTable(table, dt, inputRef.current);
+      for (const e of events) {
+        if (e.type === "bumper") {
+          addScore(e.score);
+          flashRef.current.set(e.id, timeRef.current);
+          popupsRef.current.push({ x: e.x, y: e.y - 30, text: `+${e.score}`, t: timeRef.current });
+          shakeRef.current = 0.12;
+          if (e.id.startsWith("planet")) audioManager.pop();
+          else audioManager.bubble();
+        } else if (e.type === "rollover") {
+          addScore(e.score);
+          popupsRef.current.push({ x: e.x, y: e.y - 20, text: `+${e.score}`, t: timeRef.current });
+          audioManager.ding();
+        } else if (e.type === "bonus") {
+          addScore(e.score);
+          showBanner(`⭐ 星星全亮！+${e.score} ⭐`, 2200);
+          audioManager.success();
+        } else if (e.type === "exitLane") {
+          saveUntilRef.current = timeRef.current + BALL_SAVE_SECONDS;
+        } else if (e.type === "drain") {
+          trailRef.current = [];
+          const saved = timeRef.current < saveUntilRef.current;
+          if (!saved) {
+            ballsRef.current -= 1;
+            setBallsLeft(ballsRef.current);
+          }
+          if (saved) {
+            audioManager.bubble();
+            showBanner("球還給你，再來一次！🛟");
+            serveTimerRef.current = setTimeout(() => {
+              const t = tableRef.current;
+              if (t && !overRef.current && !t.ball) resetBall(t);
+            }, 700);
+          } else if (ballsRef.current <= 0) {
+            overRef.current = true;
+            setGameOver(true);
+            audioManager.chime();
+          } else {
+            audioManager.wrong();
+            showBanner("哎呀！再來一顆 🚀");
+            serveTimerRef.current = setTimeout(() => {
+              const t = tableRef.current;
+              if (t && !overRef.current && !t.ball) resetBall(t);
+            }, 700);
+          }
+        }
+      }
+
+      // 彈珠停在軌道底部時顯示發射按鈕
+      const b = table.ball;
+      const ready = !!b && b.inLane && b.y > TABLE_H - 60 && Math.hypot(b.vx, b.vy) < 60;
+      if (ready !== canLaunchRef.current) {
+        canLaunchRef.current = ready;
+        setCanLaunch(ready);
+      }
+
+      if (b) {
+        trailRef.current.push({ x: b.x, y: b.y });
+        if (trailRef.current.length > 10) trailRef.current.shift();
+      }
+      popupsRef.current = popupsRef.current.filter((p) => timeRef.current - p.t < 0.9);
+      if (shakeRef.current > 0) shakeRef.current = Math.max(0, shakeRef.current - dt);
+    };
+
+    const drawFlipper = (ctx: CanvasRenderingContext2D, f: Flipper) => {
+      const tip = flipperTip(f);
+      ctx.lineCap = "round";
+      ctx.shadowColor = "#FF4081";
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = "#FF4081";
+      ctx.lineWidth = f.radius * 2;
+      ctx.beginPath();
+      ctx.moveTo(f.px, f.py);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "#FFD1E0";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(f.px, f.py);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.stroke();
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.arc(f.px, f.py, 4, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    const draw = (ctx: CanvasRenderingContext2D, view: View, table: Table) => {
+      const time = timeRef.current;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (staticRef.current) ctx.drawImage(staticRef.current, 0, 0);
+
+      const shake = shakeRef.current > 0 ? Math.sin(time * 90) * 2.5 * (shakeRef.current / 0.12) : 0;
+      ctx.setTransform(
+        view.dpr * view.scale,
+        0,
+        0,
+        view.dpr * view.scale,
+        view.dpr * (view.ox + shake),
+        view.dpr * view.oy
+      );
+
+      // 單向門（彈珠進檯面後關上）
+      if (table.ball && !table.ball.inLane) {
+        const g = table.gate;
+        ctx.strokeStyle = "rgba(0,229,255,0.7)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(g.ax, g.ay);
+        ctx.lineTo(g.bx, g.by);
+        ctx.stroke();
+      }
+
+      // 星星通道燈
+      for (const r of table.rollovers) {
+        starPath(ctx, r.x, r.y, r.r + 2);
+        if (r.lit) {
+          ctx.shadowColor = "#FFEA00";
+          ctx.shadowBlur = 16;
+          ctx.fillStyle = "#FFEA00";
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.fillStyle = `rgba(255,234,0,${0.12 + Math.sin(time * 3 + r.x) * 0.05})`;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,234,0,0.55)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+
+      // 星球彈射器
+      for (const bump of table.bumpers) {
+        const [c1, c2] = PLANET_COLORS[bump.id] ?? ["#FFFFFF", "#888888"];
+        const hitAt = flashRef.current.get(bump.id);
+        const flash = hitAt !== undefined ? Math.max(0, 1 - (time - hitAt) / 0.25) : 0;
+        const r = bump.r * (1 + flash * 0.18);
+        // 光環
+        ctx.strokeStyle = c1;
+        ctx.globalAlpha = 0.35 + flash * 0.65;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(bump.x, bump.y, r + 5 + flash * 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        // 本體
+        const g = ctx.createRadialGradient(bump.x - r * 0.35, bump.y - r * 0.35, r * 0.1, bump.x, bump.y, r);
+        g.addColorStop(0, flash > 0 ? "#FFFFFF" : c1);
+        g.addColorStop(1, c2);
+        ctx.shadowColor = c1;
+        ctx.shadowBlur = 10 + flash * 20;
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(bump.x, bump.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // 星球條紋
+        if (bump.r > 20) {
+          ctx.strokeStyle = "rgba(255,255,255,0.3)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(bump.x, bump.y, r * 1.35, r * 0.35, -0.4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      // 發射座
+      ctx.fillStyle = "#B0BEC5";
+      ctx.fillRect((LANE_X + 390) / 2 - 10, TABLE_H - 9, 20, 5);
+
+      // 擋板
+      drawFlipper(ctx, table.flippers.left);
+      drawFlipper(ctx, table.flippers.right);
+
+      // 彈珠與拖尾
+      const trail = trailRef.current;
+      for (let i = 0; i < trail.length; i++) {
+        const a = (i + 1) / trail.length;
+        ctx.fillStyle = `rgba(128,216,255,${a * 0.28})`;
+        ctx.beginPath();
+        ctx.arc(trail[i].x, trail[i].y, BALL_R * (0.4 + a * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const b = table.ball;
+      if (b) {
+        const g = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, BALL_R);
+        g.addColorStop(0, "#FFFFFF");
+        g.addColorStop(0.6, "#CFD8DC");
+        g.addColorStop(1, "#78909C");
+        ctx.shadowColor = "#80D8FF";
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // 分數跳字
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold 18px Arial";
+      for (const p of popupsRef.current) {
+        const age = (time - p.t) / 0.9;
+        ctx.fillStyle = `rgba(255,234,0,${1 - age})`;
+        ctx.fillText(p.text, p.x, p.y - age * 30);
+      }
+    };
+
+    let last = 0;
+    const loop = (now: number) => {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext("2d");
+      const view = viewRef.current;
+      const table = tableRef.current;
+      if (ctx && view && table) {
+        const dt = last ? Math.min(1 / 30, (now - last) / 1000) : 0;
+        last = now;
+        timeRef.current += dt;
+        update(dt);
+        draw(ctx, view, table);
+      }
+      animRef.current = requestAnimationFrame(loop);
+    };
+    animRef.current = requestAnimationFrame(loop);
+
+    // 鍵盤（桌機）：← → 擋板、空白鍵發射
+    const onKey = (down: boolean) => (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") keysRef.current.left = down;
+      else if (e.key === "ArrowRight") keysRef.current.right = down;
+      else if (e.key === " " && down) launch();
+      else return;
+      e.preventDefault();
+      syncInput();
+    };
+    const kd = onKey(true);
+    const ku = onKey(false);
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (serveTimerRef.current) clearTimeout(serveTimerRef.current);
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+    };
+  }, [handleResize, initTable, launch, showBanner, syncInput]);
+
+  // ---------- 觸控：畫面左半 = 左擋板，右半 = 右擋板 ----------
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    audioManager.init();
+    // 彈珠在軌道等待時，點任何地方都會發射
+    if (canLaunchRef.current && launch()) return;
+    const side = e.clientX < window.innerWidth / 2 ? "left" : "right";
+    pointersRef.current.set(e.pointerId, side);
+    syncInput();
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointersRef.current.delete(e.pointerId)) syncInput();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-[#05071A] select-none"
+      style={{ touchAction: "none" }}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onPointerLeave={onPointerUp}
+    >
+      <div ref={wrapperRef} className="absolute inset-0">
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      </div>
+
+      {/* 分數與剩餘球數 */}
+      <div className="fixed top-3 left-20 right-4 z-20 flex justify-end items-center gap-3 pointer-events-none">
+        <div className="rounded-2xl px-4 py-1.5 bg-black/50 border border-[#00E5FF]/60 shadow-[0_0_12px_rgba(0,229,255,0.5)]">
+          <span className="text-xs font-bold text-[#80D8FF] mr-2">分數</span>
+          <span className="text-2xl font-black text-[#FFEA00] tabular-nums">{score}</span>
+        </div>
+        <div className="rounded-2xl px-3 py-2 bg-black/50 border border-[#FF4081]/60 text-lg leading-none">
+          {Array.from({ length: TOTAL_BALLS }).map((_, i) => (
+            <span key={i} className={i < ballsLeft ? "" : "opacity-20"}>
+              ⚪
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* 訊息橫幅 */}
+      {banner && (
+        <div className="fixed top-24 left-0 right-0 z-30 flex justify-center pointer-events-none">
+          <div
+            key={banner}
+            className="rounded-2xl px-5 py-2 bg-black/70 border border-[#FFEA00] text-xl font-black text-[#FFEA00] animate-bounce-in shadow-[0_0_18px_rgba(255,234,0,0.6)]"
+          >
+            {banner}
+          </div>
+        </div>
+      )}
+
+      {/* 底部控制：左擋板 / 發射 / 右擋板（整個左右半邊畫面也可以按） */}
+      <div className="fixed bottom-3 left-0 right-0 z-20 flex justify-between items-end px-4 pointer-events-none">
+        <div
+          className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
+            pressed.left ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
+          }`}
+        >
+          ◀
+        </div>
+
+        {canLaunch && !gameOver ? (
+          <button
+            type="button"
+            onPointerDown={() => {
+              audioManager.init();
+              launch();
+            }}
+            className="pointer-events-auto mb-2 px-6 py-4 rounded-3xl bg-[#FFEA00] text-[#1A0B3D] text-2xl font-black shadow-[0_0_24px_rgba(255,234,0,0.8)] animate-pulse active:scale-90 transition-transform"
+          >
+            🚀 發射
+          </button>
+        ) : (
+          <div />
+        )}
+
+        <div
+          className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
+            pressed.right ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
+          }`}
+        >
+          ▶
+        </div>
+      </div>
+
+      {/* 結束畫面 */}
+      {gameOver && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 text-center shadow-2xl animate-celebrate max-w-sm mx-4">
+            <div className="text-6xl mb-3">🪐</div>
+            <h2 className="text-3xl font-black text-[#FF69B4] mb-1">太空任務完成！</h2>
+            <p className="text-lg text-gray-500 mb-5">
+              得到 <span className="font-black text-[#FFB74D]">{score}</span> 分
+            </p>
+            <button
+              type="button"
+              onClick={startGame}
+              className="px-8 py-4 rounded-2xl bg-[#4FC3F7] text-white font-bold text-xl active:scale-95 transition-transform"
+            >
+              再玩一次
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
