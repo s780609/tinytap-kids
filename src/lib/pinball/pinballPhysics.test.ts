@@ -2,11 +2,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BALL_R,
+  PLUNGER_MAX_PULL,
+  PLUNGER_REST_Y,
   TABLE_H,
   TABLE_W,
   createTable,
+  isBallOnPlunger,
   launchBall,
+  releasePlunger,
   resetBall,
+  setPlungerPull,
   stepTable,
   type PinballEvent,
   type Table,
@@ -28,15 +33,16 @@ function run(
   return events;
 }
 
-test("resetBall 把彈珠放在發射軌道底部並靜止不動", () => {
+test("resetBall 把彈珠放在拉桿上並靜止不動", () => {
   const table = createTable();
   resetBall(table);
   run(table, 1);
   const ball = table.ball!;
   assert.ok(ball.inLane);
   assert.ok(ball.x > 360 && ball.x < 390, `x=${ball.x}`);
-  assert.ok(ball.y > TABLE_H - 40 && ball.y < TABLE_H, `y=${ball.y}`);
+  assert.ok(Math.abs(ball.y - (PLUNGER_REST_Y - BALL_R)) < 3, `y=${ball.y}`);
   assert.ok(Math.hypot(ball.vx, ball.vy) < 30, "應該靜止");
+  assert.ok(isBallOnPlunger(table));
 });
 
 test("發射後彈珠會離開軌道進入檯面", () => {
@@ -155,4 +161,56 @@ test("長時間亂按擋板：彈珠永遠在檯面範圍內、數值不會壞�
   }
   assert.ok(score > 0, "三分鐘內應該有得分");
   assert.ok(drains > 0, "應該會掉球（不是卡住）");
+});
+
+test("往下拉拉桿，彈珠會跟著下沉；拉桿有最大行程", () => {
+  const table = createTable();
+  resetBall(table);
+  setPlungerPull(table, 40);
+  run(table, 0.6);
+  assert.ok(Math.abs(table.ball!.y - (PLUNGER_REST_Y + 40 - BALL_R)) < 3, `y=${table.ball!.y}`);
+  setPlungerPull(table, 999);
+  assert.equal(table.plunger.pull, PLUNGER_MAX_PULL);
+  setPlungerPull(table, -5);
+  assert.equal(table.plunger.pull, 0);
+});
+
+test("拉到底放開：彈珠被打出軌道，拉桿回到原位", () => {
+  const table = createTable();
+  resetBall(table);
+  setPlungerPull(table, PLUNGER_MAX_PULL);
+  run(table, 0.6);
+  const speed = releasePlunger(table);
+  assert.ok(speed > 0);
+  assert.equal(table.plunger.pull, 0);
+  const events = run(table, 3);
+  assert.ok(events.some((e) => e.type === "exitLane"));
+});
+
+test("拉越深力道越大；拉四分之一就足以進檯面", () => {
+  const speeds: number[] = [];
+  for (const ratio of [0.25, 0.5, 1]) {
+    const table = createTable();
+    resetBall(table);
+    setPlungerPull(table, PLUNGER_MAX_PULL * ratio);
+    run(table, 0.6);
+    speeds.push(releasePlunger(table));
+    const events = run(table, 3);
+    assert.ok(events.some((e) => e.type === "exitLane"), `ratio ${ratio} 應進檯面`);
+  }
+  assert.ok(speeds[0] < speeds[1] && speeds[1] < speeds[2]);
+});
+
+test("幾乎沒拉就放開不會發射；彈珠不在拉桿上也不會發射", () => {
+  const table = createTable();
+  resetBall(table);
+  setPlungerPull(table, 1);
+  assert.equal(releasePlunger(table), 0);
+  assert.ok(isBallOnPlunger(table));
+
+  launchBall(table, 1250);
+  run(table, 0.3);
+  setPlungerPull(table, PLUNGER_MAX_PULL);
+  assert.equal(releasePlunger(table), 0, "彈珠已經飛走，不應再發射");
+  assert.equal(table.plunger.pull, 0);
 });

@@ -14,6 +14,14 @@ export const LANE_X = 360;
 /** 檯面（不含軌道）的中心 x */
 export const FIELD_CX = 185;
 
+/** 拉桿：頂端靜止位置、最大下拉距離、放開時的速度範圍 */
+export const PLUNGER_REST_Y = 630;
+export const PLUNGER_MAX_PULL = 55;
+export const PLUNGER_MIN_SPEED = 850;
+export const PLUNGER_MAX_SPEED = 1350;
+/** 拉不到這個比例就放開，只會彈回去不發射 */
+const PLUNGER_MIN_RATIO = 0.05;
+
 const SUBSTEP = 1 / 480;
 const WALL_RESTITUTION = 0.45;
 const FLIPPER_RESTITUTION = 0.35;
@@ -81,6 +89,9 @@ export interface Table {
   walls: Segment[];
   /** 彈珠離開軌道後關上的單向門 */
   gate: Segment;
+  /** 拉桿頂端（彈珠停在上面），y 會跟著下拉距離移動 */
+  laneFloor: Segment;
+  plunger: { pull: number };
   bumpers: Bumper[];
   rollovers: Rollover[];
   flippers: { left: Flipper; right: Flipper };
@@ -114,9 +125,8 @@ export function createTable(): Table {
     // 左牆、右外牆
     { ax: 10, ay: 200, bx: 10, by: 560 },
     { ax: 390, ay: 200, bx: 390, by: TABLE_H },
-    // 發射軌道內牆與底板
+    // 發射軌道內牆
     { ax: LANE_X, ay: 170, bx: LANE_X, by: TABLE_H },
-    { ax: LANE_X, ay: TABLE_H - 10, bx: 390, by: TABLE_H - 10 },
     // 導向擋板的斜坡
     { ax: 10, ay: 560, bx: leftPivotX, by: flipperY - 2 },
     { ax: LANE_X, ay: 560, bx: rightPivotX, by: flipperY - 2 }
@@ -165,6 +175,8 @@ export function createTable(): Table {
   return {
     walls,
     gate,
+    laneFloor: { ax: LANE_X, ay: PLUNGER_REST_Y, bx: 390, by: PLUNGER_REST_Y },
+    plunger: { pull: 0 },
     bumpers,
     rollovers,
     flippers: { left: makeFlipper("left"), right: makeFlipper("right") },
@@ -172,25 +184,64 @@ export function createTable(): Table {
   };
 }
 
-/** 把新的彈珠放到發射軌道底部 */
+/** 拉桿頂端目前的 y */
+export function plungerTipY(table: Table): number {
+  return PLUNGER_REST_Y + table.plunger.pull;
+}
+
+/** 設定拉桿下拉距離（0～PLUNGER_MAX_PULL），彈珠會跟著拉桿頂端下沉 */
+export function setPlungerPull(table: Table, pull: number): void {
+  const p = Math.max(0, Math.min(PLUNGER_MAX_PULL, pull));
+  table.plunger.pull = p;
+  table.laneFloor.ay = PLUNGER_REST_Y + p;
+  table.laneFloor.by = PLUNGER_REST_Y + p;
+}
+
+/** 彈珠是否靜止停在拉桿上 */
+export function isBallOnPlunger(table: Table): boolean {
+  const b = table.ball;
+  if (!b || !b.inLane) return false;
+  return (
+    Math.abs(b.y - (plungerTipY(table) - BALL_R)) < 6 && Math.hypot(b.vx, b.vy) < 80
+  );
+}
+
+/** 把新的彈珠放到拉桿上 */
 export function resetBall(table: Table): void {
+  setPlungerPull(table, 0);
   table.ball = {
     x: (LANE_X + 390) / 2,
-    y: TABLE_H - 10 - BALL_R - 0.5,
+    y: PLUNGER_REST_Y - BALL_R - 0.5,
     vx: 0,
     vy: 0,
     inLane: true,
   };
 }
 
-/** 彈珠停在軌道底部時才能發射；成功回傳 true */
+/** 彈珠停在拉桿上時才能發射；拉桿彈回原位並把彈珠打出去。成功回傳 true */
 export function launchBall(table: Table, speed: number): boolean {
+  const ready = isBallOnPlunger(table);
+  setPlungerPull(table, 0);
   const b = table.ball;
-  if (!b || !b.inLane) return false;
-  if (b.y < TABLE_H - 60 || Math.hypot(b.vx, b.vy) > 60) return false;
+  if (!ready || !b) return false;
+  b.y = PLUNGER_REST_Y - BALL_R - 0.5;
   b.vx = 0;
   b.vy = -speed;
   return true;
+}
+
+/**
+ * 放開拉桿：依下拉比例決定力道，拉越深越快。
+ * 回傳發射速度；沒有發射（沒拉、或彈珠不在拉桿上）回傳 0。
+ */
+export function releasePlunger(table: Table): number {
+  const ratio = table.plunger.pull / PLUNGER_MAX_PULL;
+  if (ratio < PLUNGER_MIN_RATIO) {
+    setPlungerPull(table, 0);
+    return 0;
+  }
+  const speed = PLUNGER_MIN_SPEED + ratio * (PLUNGER_MAX_SPEED - PLUNGER_MIN_SPEED);
+  return launchBall(table, speed) ? speed : 0;
 }
 
 export function flipperTip(f: Flipper): { x: number; y: number } {
@@ -296,6 +347,8 @@ function substep(
   for (const w of table.walls) {
     collideSegment(b, w.ax, w.ay, w.bx, w.by, 0, WALL_RESTITUTION);
   }
+  const lf = table.laneFloor;
+  collideSegment(b, lf.ax, lf.ay, lf.bx, lf.by, 0, 0.2);
   if (!b.inLane) {
     const g = table.gate;
     collideSegment(b, g.ax, g.ay, g.bx, g.by, 0, WALL_RESTITUTION);

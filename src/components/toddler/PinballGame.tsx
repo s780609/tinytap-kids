@@ -6,12 +6,15 @@ import { useSettings } from "@/lib/settings/SettingsContext";
 import {
   BALL_R,
   LANE_X,
+  PLUNGER_REST_Y,
   TABLE_H,
   TABLE_W,
   createTable,
   flipperTip,
-  launchBall,
+  isBallOnPlunger,
+  releasePlunger,
   resetBall,
+  setPlungerPull,
   stepTable,
   type Flipper,
   type Table,
@@ -67,7 +70,6 @@ export default function PinballGame() {
 
   const [score, setScore] = useState(0);
   const [ballsLeft, setBallsLeft] = useState(TOTAL_BALLS);
-  const [canLaunch, setCanLaunch] = useState(true);
   const [gameOver, setGameOver] = useState(false);
   const [pressed, setPressed] = useState({ left: false, right: false });
   const [banner, setBanner] = useState<string | null>(null);
@@ -81,7 +83,15 @@ export default function PinballGame() {
   const scoreRef = useRef(0);
   const ballsRef = useRef(TOTAL_BALLS);
   const overRef = useRef(false);
-  const canLaunchRef = useRef(true);
+  /** 拉桿拖曳狀態：哪一根手指在拉、起點在哪 */
+  const pullRef = useRef<{ pointerId: number | null; startY: number; startPull: number }>({
+    pointerId: null,
+    startY: 0,
+    startPull: 0,
+  });
+  const keyPullRef = useRef(false);
+  const readyRef = useRef(false);
+  const visPullRef = useRef(0);
   const flashRef = useRef(new Map<string, number>());
   const popupsRef = useRef<Popup[]>([]);
   const trailRef = useRef<{ x: number; y: number }[]>([]);
@@ -117,16 +127,11 @@ export default function PinballGame() {
     }
   }, []);
 
-  const launch = useCallback(() => {
+  /** 放開拉桿：依下拉深度把彈珠打出去 */
+  const release = useCallback(() => {
     const table = tableRef.current;
-    if (!table || overRef.current) return false;
-    if (launchBall(table, 1200 + Math.random() * 150)) {
-      audioManager.whoosh();
-      canLaunchRef.current = false;
-      setCanLaunch(false);
-      return true;
-    }
-    return false;
+    if (!table) return;
+    if (releasePlunger(table) > 0) audioManager.whoosh();
   }, []);
 
   /** 建立新檯面並重置所有 ref 狀態（不動 React state） */
@@ -137,7 +142,6 @@ export default function PinballGame() {
     scoreRef.current = 0;
     ballsRef.current = TOTAL_BALLS;
     overRef.current = false;
-    canLaunchRef.current = true;
     popupsRef.current = [];
     trailRef.current = [];
     flashRef.current.clear();
@@ -147,7 +151,6 @@ export default function PinballGame() {
     initTable();
     setScore(0);
     setBallsLeft(TOTAL_BALLS);
-    setCanLaunch(true);
     setGameOver(false);
   }, [initTable]);
 
@@ -302,6 +305,8 @@ export default function PinballGame() {
     const update = (dt: number) => {
       const table = tableRef.current;
       if (!table || overRef.current) return;
+      // 鍵盤按住時拉桿慢慢往下
+      if (keyPullRef.current) setPlungerPull(table, table.plunger.pull + 140 * dt);
       const events = stepTable(table, dt, inputRef.current);
       for (const e of events) {
         if (e.type === "bumper") {
@@ -350,13 +355,10 @@ export default function PinballGame() {
         }
       }
 
-      // 彈珠停在軌道底部時顯示發射按鈕
+      // 彈珠停在拉桿上時顯示「往下拉」提示；拉桿畫面位置平滑跟上
       const b = table.ball;
-      const ready = !!b && b.inLane && b.y > TABLE_H - 60 && Math.hypot(b.vx, b.vy) < 60;
-      if (ready !== canLaunchRef.current) {
-        canLaunchRef.current = ready;
-        setCanLaunch(ready);
-      }
+      readyRef.current = isBallOnPlunger(table);
+      visPullRef.current += (table.plunger.pull - visPullRef.current) * Math.min(1, dt * 45);
 
       if (b) {
         trailRef.current.push({ x: b.x, y: b.y });
@@ -469,9 +471,68 @@ export default function PinballGame() {
         }
       }
 
-      // 發射座
-      ctx.fillStyle = "#B0BEC5";
-      ctx.fillRect((LANE_X + 390) / 2 - 10, TABLE_H - 9, 20, 5);
+      // 拉桿：頂板、彈簧、拉桿與把手
+      {
+        const px = (LANE_X + 390) / 2;
+        const tipY = PLUNGER_REST_Y + visPullRef.current;
+        const baseY = TABLE_H - 4;
+        const knobY = tipY + 88;
+        // 彈簧（拉越深壓得越扁）
+        ctx.strokeStyle = "#CFD8DC";
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        const coils = 7;
+        ctx.moveTo(px, tipY + 5);
+        for (let i = 1; i <= coils * 2; i++) {
+          const y = tipY + 5 + ((baseY - tipY - 5) * i) / (coils * 2);
+          ctx.lineTo(px + (i % 2 === 0 ? -8 : 8), y);
+        }
+        ctx.stroke();
+        // 底座
+        ctx.fillStyle = "#546E7A";
+        ctx.fillRect(LANE_X + 2, baseY, 390 - LANE_X - 4, 5);
+        // 拉桿
+        ctx.strokeStyle = "#B0BEC5";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(px, baseY + 4);
+        ctx.lineTo(px, knobY);
+        ctx.stroke();
+        // 頂板
+        ctx.fillStyle = "#ECEFF1";
+        ctx.beginPath();
+        ctx.roundRect(px - 12, tipY, 24, 6, 3);
+        ctx.fill();
+        // 把手
+        const pulling = pullRef.current.pointerId !== null || keyPullRef.current;
+        const kg = ctx.createRadialGradient(px - 5, knobY - 5, 2, px, knobY, 17);
+        kg.addColorStop(0, "#FFCDD2");
+        kg.addColorStop(0.5, "#FF5252");
+        kg.addColorStop(1, "#B71C1C");
+        ctx.shadowColor = "#FF5252";
+        ctx.shadowBlur = pulling ? 22 : 12;
+        ctx.fillStyle = kg;
+        ctx.beginPath();
+        ctx.arc(px, knobY, 17, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // 提示：彈珠就緒且還沒拉時，把手下方有跳動的箭頭
+        if (readyRef.current && !pulling) {
+          const bob = Math.sin(time * 6) * 4;
+          ctx.fillStyle = "#FFEA00";
+          ctx.shadowColor = "#FFEA00";
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.moveTo(px, knobY + 44 + bob);
+          ctx.lineTo(px - 11, knobY + 28 + bob);
+          ctx.lineTo(px + 11, knobY + 28 + bob);
+          ctx.closePath();
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
 
       // 擋板
       drawFlipper(ctx, table.flippers.left);
@@ -529,12 +590,17 @@ export default function PinballGame() {
     };
     animRef.current = requestAnimationFrame(loop);
 
-    // 鍵盤（桌機）：← → 擋板、空白鍵發射
+    // 鍵盤（桌機）：← → 擋板；按住空白鍵或 ↓ 拉桿，放開發射
     const onKey = (down: boolean) => (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") keysRef.current.left = down;
       else if (e.key === "ArrowRight") keysRef.current.right = down;
-      else if (e.key === " " && down) launch();
-      else return;
+      else if (e.key === " " || e.key === "ArrowDown") {
+        if (down) keyPullRef.current = true;
+        else if (keyPullRef.current) {
+          keyPullRef.current = false;
+          release();
+        }
+      } else return;
       e.preventDefault();
       syncInput();
     };
@@ -551,20 +617,52 @@ export default function PinballGame() {
       if (serveTimerRef.current) clearTimeout(serveTimerRef.current);
       if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     };
-  }, [handleResize, initTable, launch, showBanner, syncInput]);
+  }, [handleResize, initTable, release, showBanner, syncInput]);
 
-  // ---------- 觸控：畫面左半 = 左擋板，右半 = 右擋板 ----------
+  // ---------- 觸控：拉桿區往下拉放；其餘畫面左半 = 左擋板，右半 = 右擋板 ----------
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("button")) return;
     audioManager.init();
-    // 彈珠在軌道等待時，點任何地方都會發射
-    if (canLaunchRef.current && launch()) return;
+    const view = viewRef.current;
+    const table = tableRef.current;
+    if (view && table && pullRef.current.pointerId === null) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const tx = (e.clientX - rect.left - view.ox) / view.scale;
+      const ty = (e.clientY - rect.top - view.oy) / view.scale;
+      // 拉桿區：發射軌道下半段到把手下方
+      if (tx > LANE_X - 25 && tx < TABLE_W + 25 && ty > PLUNGER_REST_Y - 40) {
+        pullRef.current = {
+          pointerId: e.pointerId,
+          startY: e.clientY,
+          startPull: table.plunger.pull,
+        };
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // 指標已失效時略過，拖曳狀態已記錄
+        }
+        return;
+      }
+    }
     const side = e.clientX < window.innerWidth / 2 ? "left" : "right";
     pointersRef.current.set(e.pointerId, side);
     syncInput();
   };
 
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pull = pullRef.current;
+    const view = viewRef.current;
+    const table = tableRef.current;
+    if (pull.pointerId !== e.pointerId || !view || !table) return;
+    setPlungerPull(table, pull.startPull + (e.clientY - pull.startY) / view.scale);
+  };
+
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pullRef.current.pointerId === e.pointerId) {
+      pullRef.current.pointerId = null;
+      release();
+      return;
+    }
     if (pointersRef.current.delete(e.pointerId)) syncInput();
   };
 
@@ -573,6 +671,7 @@ export default function PinballGame() {
       className="fixed inset-0 bg-[#05071A] select-none"
       style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onPointerLeave={onPointerUp}
@@ -608,8 +707,8 @@ export default function PinballGame() {
         </div>
       )}
 
-      {/* 底部控制：左擋板 / 發射 / 右擋板（整個左右半邊畫面也可以按） */}
-      <div className="fixed bottom-3 left-0 right-0 z-20 flex justify-between items-end px-4 pointer-events-none">
+      {/* 底部控制：左右擋板提示（整個左右半邊畫面都可以按）；右下角留給拉桿把手 */}
+      <div className="fixed bottom-3 left-0 right-0 z-20 flex justify-center items-end gap-8 pr-12 pointer-events-none">
         <div
           className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
             pressed.left ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
@@ -617,22 +716,6 @@ export default function PinballGame() {
         >
           ◀
         </div>
-
-        {canLaunch && !gameOver ? (
-          <button
-            type="button"
-            onPointerDown={() => {
-              audioManager.init();
-              launch();
-            }}
-            className="pointer-events-auto mb-2 px-6 py-4 rounded-3xl bg-[#FFEA00] text-[#1A0B3D] text-2xl font-black shadow-[0_0_24px_rgba(255,234,0,0.8)] animate-pulse active:scale-90 transition-transform"
-          >
-            🚀 發射
-          </button>
-        ) : (
-          <div />
-        )}
-
         <div
           className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
             pressed.right ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
