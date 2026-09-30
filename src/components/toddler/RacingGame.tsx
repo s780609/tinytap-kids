@@ -25,8 +25,9 @@ const ROAD_SPEED_INITIAL = 3;
 const SPAWN_INTERVAL = 60;
 const GAME_DURATION = 120; // seconds
 const TARGET_COINS = 30;
+const MAX_HITS = 3; // 撞到障礙物 3 次就結束
 
-type GamePhase = "countdown" | "playing" | "finished";
+type GamePhase = "countdown" | "playing" | "finished" | "crashed";
 
 let nextItemId = 0;
 let nextCoinAnimId = 0;
@@ -39,6 +40,8 @@ export default function RacingGame() {
   const [phase, setPhase] = useState<GamePhase>("countdown");
   const [countdown, setCountdown] = useState(3);
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
+  const [hits, setHits] = useState(0);
+  const [hitFlash, setHitFlash] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const gameStateRef = useRef({
@@ -49,6 +52,7 @@ export default function RacingGame() {
     frameCount: 0,
     speed: ROAD_SPEED_INITIAL,
     score: 0,
+    hits: 0,
     width: 0,
     height: 0,
     roadLeft: 0,
@@ -70,6 +74,8 @@ export default function RacingGame() {
     setScore(0);
     setTimeLeft(GAME_DURATION);
     setFlyingCoins([]);
+    setHits(0);
+    setHitFlash(false);
 
     const gs = gameStateRef.current;
     gs.carX = 0.5;
@@ -79,6 +85,7 @@ export default function RacingGame() {
     gs.frameCount = 0;
     gs.speed = ROAD_SPEED_INITIAL;
     gs.score = 0;
+    gs.hits = 0;
     gs.playing = false;
     gs.holdDir = 0;
     nextItemId = 0;
@@ -296,7 +303,19 @@ export default function RacingGame() {
             { id: coinId, startX: coinScreenX, startY: coinScreenY, progress: 0 },
           ]);
         } else {
-          audioManager.pop();
+          gs.hits++;
+          setHits(gs.hits);
+          audioManager.wrong();
+          setHitFlash(true);
+          setTimeout(() => setHitFlash(false), 300);
+          if (gs.hits >= MAX_HITS) {
+            gs.playing = false;
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            setPhase("crashed");
+          }
         }
         gs.items.splice(i, 1);
       }
@@ -379,6 +398,10 @@ export default function RacingGame() {
           <span className={`text-lg font-black ${timeLeft <= 10 ? "text-[#EF5350]" : "text-[#4A4A4A]"}`}>
             ⏱ {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
           </span>
+          <span className="text-sm block -mt-0.5 tracking-wider" aria-label={`剩餘 ${MAX_HITS - hits} 條命`}>
+            {"❤️".repeat(Math.max(0, MAX_HITS - hits))}
+            {"🖤".repeat(Math.min(MAX_HITS, hits))}
+          </span>
         </div>
         {/* Score + Target */}
         <div className="bg-white/80 backdrop-blur rounded-2xl px-3 py-1.5 shadow-md text-right">
@@ -446,6 +469,11 @@ export default function RacingGame() {
         </button>
       </div>
 
+      {/* Hit flash */}
+      {hitFlash && (
+        <div className="fixed inset-0 z-30 bg-[#EF5350]/40 pointer-events-none" />
+      )}
+
       {/* Countdown overlay */}
       {phase === "countdown" && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
@@ -456,22 +484,28 @@ export default function RacingGame() {
       )}
 
       {/* Finished overlay */}
-      {phase === "finished" && (
+      {(phase === "finished" || phase === "crashed") && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-8 text-center shadow-2xl animate-celebrate max-w-sm mx-4">
             <div className="text-6xl mb-3">
-              {score >= TARGET_COINS ? "🏆" : "🏁"}
+              {phase === "crashed" ? "💥" : score >= TARGET_COINS ? "🏆" : "🏁"}
             </div>
             <h2 className="text-3xl font-black text-[#FF69B4] mb-1">
-              {score >= TARGET_COINS ? "太厲害了！" : "完賽！"}
+              {phase === "crashed"
+                ? "撞到石頭了！"
+                : score >= TARGET_COINS
+                  ? "太厲害了！"
+                  : "完賽！"}
             </h2>
             <p className="text-lg text-gray-500 mb-1">
               收集了 <span className="font-black text-[#FFB74D]">{score}</span> 個金幣
             </p>
             <p className="text-sm text-gray-400 mb-5">
-              {score >= TARGET_COINS
-                ? `超過目標 ${TARGET_COINS} 個！好棒！`
-                : `目標 ${TARGET_COINS} 個，再加油！`}
+              {phase === "crashed"
+                ? `撞到 ${MAX_HITS} 次石頭就要休息囉，再試一次！`
+                : score >= TARGET_COINS
+                  ? `超過目標 ${TARGET_COINS} 個！好棒！`
+                  : `目標 ${TARGET_COINS} 個，再加油！`}
             </p>
             <button
               onClick={startCountdown}

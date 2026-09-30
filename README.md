@@ -22,7 +22,8 @@
 - **畫畫板** — 全螢幕 Canvas 繪畫，8 色色盤、3 種筆刷、橡皮擦、印章（星星/愛心/貓咪/小狗/花朵/蝴蝶）、撤銷、清除、背景色切換。內建描繪圖線模板（小馬/兔子/迷你豬），淺灰虛線引導小朋友沿線描繪
 - **記憶翻牌** — 4x3 翻牌配對遊戲，6 對可愛動物 SVG，全部配對完成有慶祝動畫
 - **數一數** — 隨機顯示 1～5 個水果（蘋果/香蕉/葡萄/橘子/草莓），點選正確數字
-- **賽車** — Canvas 跑道自動捲動，中央方向盤觸控轉動控制車子平滑移動。3-2-1 倒數開始、2 分鐘計時、目標 30 金幣。吃到金幣會飛向右上角收集欄
+- **賽車** — Canvas 跑道自動捲動，中央方向盤觸控轉動控制車子平滑移動。3-2-1 倒數開始、2 分鐘計時、目標 30 金幣。吃到金幣會飛向右上角收集欄。撞到石頭會扣一顆愛心，撞 3 次就結束
+- **玩沙沙** — 側視圖沙盤，沙子以一維高度場模擬並有安息角崩落。手指可以推沙、挖沙堆成沙丘；水桶可以倒沙；平板 / 城堡 / 波浪 / 圓碗四種模具往下壓可以幫沙子造型，多出的沙會擠到兩側
 
 ## 技術架構
 
@@ -47,18 +48,20 @@ src/
 │   │   ├── drawing/        # 畫畫板
 │   │   ├── memory/         # 記憶翻牌
 │   │   ├── counting/       # 數一數
-│   │   └── racing/         # 賽車
+│   │   ├── racing/         # 賽車
+│   │   └── sand/           # 玩沙沙
 │   ├── ~offline/           # 離線 fallback
 │   ├── sw.ts               # Service Worker
 │   └── manifest.ts         # PWA Manifest
 ├── components/
 │   ├── baby/               # 氣球遊戲 + 粒子 Canvas
-│   ├── toddler/            # 畫畫板 / 記憶翻牌 / 數數 / 賽車
+│   ├── toddler/            # 畫畫板 / 記憶翻牌 / 數數 / 賽車 / 玩沙沙
 │   ├── svg/                # SVG 圖形 (shapes/animals/fruits)
 │   └── ui/                 # BigButton / BackButton / ParentSettings / TimerOverlay / RegisterSW
 ├── lib/
 │   ├── audio/              # AudioManager (singleton) + synth.ts (合成音效)
 │   ├── particles/          # Canvas 粒子引擎
+│   ├── sand/               # 沙子高度場物理（純函式，含 node --test 測試）
 │   ├── templates/          # 描繪圖線模板 (小馬/兔子/迷你豬)
 │   ├── settings/           # SettingsContext + localStorage
 │   └── utils/              # 顏色、隨機數工具
@@ -77,6 +80,9 @@ npm install
 
 # 開發模式
 npm run dev
+
+# 單元測試（沙子物理模組，使用 Node 內建 test runner）
+npm test
 
 # 建置
 npm run build
