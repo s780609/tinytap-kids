@@ -6,17 +6,20 @@ import { useSettings } from "@/lib/settings/SettingsContext";
 import {
   CATCH_TYPES,
   REEL_TURNS_NEEDED,
+  angleDelta,
   createSwimmer,
   createSwimmers,
   getCatchType,
+  isReelDone,
   nearestSwimmer,
-  reelStep,
+  pickRandomKind,
+  turnsFromAngle,
   updateSwimmers,
   type CatchKind,
   type Swimmer,
 } from "@/lib/fishing/fishingLogic";
 
-type Phase = "idle" | "casting" | "waiting" | "hooked" | "landing";
+type Phase = "idle" | "aiming" | "casting" | "waiting" | "hooked" | "landing";
 
 interface Rect {
   x: number;
@@ -45,11 +48,13 @@ export default function FishingGame() {
   const { settings } = useSettings();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const reelRef = useRef<HTMLButtonElement>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [turns, setTurns] = useState(0);
   const [reelAngle, setReelAngle] = useState(0);
   const [bucket, setBucket] = useState<CatchKind[]>([]);
+  const [showBucket, setShowBucket] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const phaseRef = useRef<Phase>("idle");
@@ -59,6 +64,7 @@ export default function FishingGame() {
   const attractedRef = useRef<Swimmer | null>(null);
   const hookedRef = useRef<Swimmer | null>(null);
   const landingRef = useRef({ stage: "toTip" as "toTip" | "toBucket", t: 0 });
+  const reelDragRef = useRef({ active: false, lastAngle: 0, accum: 0 });
   const biteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timeRef = useRef(0);
@@ -106,38 +112,85 @@ export default function FishingGame() {
     }
   }, []);
 
-  // ---------- 操作 ----------
-  const cast = useCallback(() => {
-    const g = geomRef.current;
-    if (!g || phaseRef.current !== "idle") return;
-    const hook = hookRef.current;
-    hook.fromX = (g.rodTip.x - g.pond.x) / g.pond.w;
-    hook.fromY = (g.rodTip.y - g.pond.y) / g.pond.h;
-    hook.x = 0.25 + Math.random() * 0.55;
-    hook.y = 0.25 + Math.random() * 0.55;
-    hook.t = 0;
-    setTurns(0);
-    setPhaseBoth("casting");
-    audioManager.whoosh();
-  }, [setPhaseBoth]);
-
-  const reel = useCallback(() => {
-    if (phaseRef.current !== "hooked") return;
+  // ---------- 操作：丟竿（先瞄準，再點池塘） ----------
+  const startAiming = useCallback(() => {
+    if (phaseRef.current !== "idle") return;
+    setPhaseBoth("aiming");
+    showMessage("點一下池塘，鉤子就丟到那裡 👆", 3000);
     audioManager.pop();
-    setReelAngle((a) => a + 360);
-    setTurns((prev) => {
-      const r = reelStep(prev);
-      if (r.done) {
-        landingRef.current = { stage: "toTip", t: 0 };
-        setPhaseBoth("landing");
-      }
-      return r.turns;
-    });
-  }, [setPhaseBoth]);
+  }, [setPhaseBoth, showMessage]);
 
-  const onButton = () => {
-    if (phase === "idle") cast();
-    else if (phase === "hooked") reel();
+  const castTo = useCallback(
+    (nx: number, ny: number) => {
+      const g = geomRef.current;
+      if (!g || phaseRef.current !== "aiming") return;
+      const hook = hookRef.current;
+      hook.fromX = (g.rodTip.x - g.pond.x) / g.pond.w;
+      hook.fromY = (g.rodTip.y - g.pond.y) / g.pond.h;
+      hook.x = Math.max(0.04, Math.min(0.96, nx));
+      hook.y = Math.max(0.06, Math.min(0.96, ny));
+      hook.t = 0;
+      setTurns(0);
+      setReelAngle(0);
+      reelDragRef.current = { active: false, lastAngle: 0, accum: 0 };
+      setMessage(null);
+      setPhaseBoth("casting");
+      audioManager.whoosh();
+    },
+    [setPhaseBoth]
+  );
+
+  const onCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const g = geomRef.current;
+    if (!g || phaseRef.current !== "aiming") return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    // 點在池塘外就丟到最近的池邊
+    castTo((px - g.pond.x) / g.pond.w, (py - g.pond.y) / g.pond.h);
+  };
+
+  // ---------- 操作：手指在捲線輪上畫圈 ----------
+  const reelAngleAt = (e: React.PointerEvent) => {
+    const el = reelRef.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    return (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
+  };
+
+  const onReelDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (phaseRef.current !== "hooked") return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const d = reelDragRef.current;
+    d.active = true;
+    d.lastAngle = reelAngleAt(e);
+  };
+
+  const onReelMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = reelDragRef.current;
+    if (!d.active || phaseRef.current !== "hooked") return;
+    const a = reelAngleAt(e);
+    const delta = angleDelta(d.lastAngle, a);
+    d.lastAngle = a;
+    d.accum += delta;
+    setReelAngle(d.accum);
+    const t = turnsFromAngle(d.accum);
+    setTurns((prev) => {
+      if (t > prev) audioManager.pop();
+      return t;
+    });
+    if (isReelDone(d.accum)) {
+      d.active = false;
+      landingRef.current = { stage: "toTip", t: 0 };
+      setPhaseBoth("landing");
+      audioManager.ding();
+    }
+  };
+
+  const onReelUp = () => {
+    reelDragRef.current.active = false;
   };
 
   // ---------- 主迴圈 ----------
@@ -170,8 +223,8 @@ export default function FishingGame() {
         const type = getCatchType(caught.kind);
         setBucket((prev) => [...prev, caught.kind]);
         swimmersRef.current = swimmersRef.current.filter((s) => s.id !== caught.id);
-        const pool: CatchKind[] = ["koi", "koi", "shark", "crab", "koi", "tire"];
-        const fresh = createSwimmer(pool[Math.floor(Math.random() * pool.length)]);
+        // 補一隻隨機種類，從池邊游進來
+        const fresh = createSwimmer(pickRandomKind());
         fresh.x = Math.random() < 0.5 ? 0.03 : 0.97;
         fresh.dir = fresh.x < 0.5 ? 1 : -1;
         swimmersRef.current.push(fresh);
@@ -215,7 +268,7 @@ export default function FishingGame() {
           hookedRef.current = attracted;
           attractedRef.current = null;
           setPhaseBoth("hooked");
-          showMessage("上鉤了！快轉圈圈收線 🔄", 2500);
+          showMessage("上鉤了！手指在輪子上畫圈圈 🔄", 3000);
           audioManager.pop();
           audioManager.ding();
         } else {
@@ -346,6 +399,13 @@ export default function FishingGame() {
         const y = pond.y + s.y * pond.h;
         drawEmoji(ctx, type.emoji, x, y, type.size, s.dir === 1 && !type.isJunk);
       }
+
+      // 瞄準中：池塘閃爍提示
+      const p = phaseRef.current;
+      if (p === "aiming") {
+        ctx.fillStyle = `rgba(255,255,255,${0.08 + Math.sin(time * 5) * 0.06})`;
+        ctx.fillRect(pond.x, pond.y, pond.w, pond.h);
+      }
       ctx.restore();
 
       // 荷葉
@@ -356,7 +416,6 @@ export default function FishingGame() {
       ctx.fill();
 
       // 釣竿
-      const p = phaseRef.current;
       ctx.strokeStyle = "#8D6E63";
       ctx.lineWidth = 7;
       ctx.lineCap = "round";
@@ -374,7 +433,7 @@ export default function FishingGame() {
       // 釣線與鉤子
       let hx: number;
       let hy: number;
-      if (p === "idle") {
+      if (p === "idle" || p === "aiming") {
         hx = g.rodTip.x;
         hy = g.rodTip.y + 26;
       } else if (p === "casting") {
@@ -472,17 +531,29 @@ export default function FishingGame() {
   const buttonLabel =
     phase === "idle"
       ? { emoji: "🎣", text: "丟竿" }
-      : phase === "hooked"
-        ? { emoji: "🔄", text: "收線" }
-        : phase === "landing"
-          ? { emoji: "🪣", text: "放進桶" }
-          : { emoji: "⏳", text: "等等…" };
-  const buttonActive = phase === "idle" || phase === "hooked";
+      : phase === "aiming"
+        ? { emoji: "👆", text: "點池塘" }
+        : phase === "hooked"
+          ? { emoji: "🔄", text: "畫圈圈" }
+          : phase === "landing"
+            ? { emoji: "🪣", text: "放進桶" }
+            : { emoji: "⏳", text: "等等…" };
+  const buttonActive = phase === "idle";
+
+  // 水桶清單：依種類彙整
+  const bucketSummary = CATCH_TYPES.map((c) => ({
+    type: c,
+    count: bucket.filter((k) => k === c.kind).length,
+  })).filter((x) => x.count > 0);
 
   return (
     <div className="fixed inset-0 bg-[#A5D6A7]" style={{ touchAction: "none" }}>
       <div ref={wrapperRef} className="absolute inset-0">
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+        <canvas
+          ref={canvasRef}
+          className={`absolute inset-0 w-full h-full ${phase === "aiming" ? "cursor-crosshair" : ""}`}
+          onPointerDown={onCanvasPointerDown}
+        />
       </div>
 
       {/* 訊息 */}
@@ -497,10 +568,18 @@ export default function FishingGame() {
         </div>
       )}
 
-      {/* 水桶 */}
-      <div className="fixed left-4 bottom-6 z-20 flex flex-col items-center w-28">
+      {/* 水桶（點一下看裡面有什麼） */}
+      <button
+        type="button"
+        aria-label="看看水桶裡有什麼"
+        onClick={() => {
+          setShowBucket(true);
+          audioManager.pop();
+        }}
+        className="fixed left-4 bottom-6 z-20 flex flex-col items-center w-28 active:scale-95 transition-transform select-none"
+      >
         <div className="relative">
-          <span className="text-7xl leading-none select-none">🪣</span>
+          <span className="text-7xl leading-none">🪣</span>
           <span className="absolute -top-1 -right-2 min-w-8 h-8 px-2 rounded-full bg-[#FFB74D] text-white text-lg font-black flex items-center justify-center shadow">
             {bucket.length}
           </span>
@@ -512,27 +591,31 @@ export default function FishingGame() {
             </span>
           ))}
         </div>
-      </div>
+      </button>
 
-      {/* 捲線輪：上鉤時出現 */}
+      {/* 捲線輪：上鉤時出現，手指畫圈 */}
       {phase === "hooked" && (
-        <div className="fixed right-6 bottom-40 z-20 flex flex-col items-center animate-bounce-in">
+        <div className="fixed right-4 bottom-40 z-20 flex flex-col items-center animate-bounce-in">
           <button
+            ref={reelRef}
             type="button"
-            aria-label="轉動捲線輪"
-            onPointerDown={reel}
-            className="w-28 h-28 rounded-full shadow-xl active:scale-95 transition-transform border-[6px] border-[#5D4037] relative select-none"
+            aria-label="手指在捲線輪上畫圈"
+            onPointerDown={onReelDown}
+            onPointerMove={onReelMove}
+            onPointerUp={onReelUp}
+            onPointerCancel={onReelUp}
+            className="w-40 h-40 rounded-full shadow-xl border-[6px] border-[#5D4037] relative select-none"
             style={{
+              touchAction: "none",
               background:
                 "conic-gradient(#FFD54F 0 30deg, #F9A825 30deg 60deg, #FFD54F 60deg 90deg, #F9A825 90deg 120deg, #FFD54F 120deg 150deg, #F9A825 150deg 180deg, #FFD54F 180deg 210deg, #F9A825 210deg 240deg, #FFD54F 240deg 270deg, #F9A825 270deg 300deg, #FFD54F 300deg 330deg, #F9A825 330deg 360deg)",
               transform: `rotate(${reelAngle}deg)`,
-              transition: "transform 0.45s cubic-bezier(.3,1.4,.6,1)",
             }}
           >
             <span className="absolute inset-0 flex items-center justify-center">
-              <span className="w-8 h-8 rounded-full bg-[#5D4037] block" />
+              <span className="w-10 h-10 rounded-full bg-[#5D4037] block" />
             </span>
-            <span className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#EF5350] block" />
+            <span className="absolute top-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-[#EF5350] border-2 border-white block" />
           </button>
           <div className="flex gap-1.5 mt-2">
             {Array.from({ length: REEL_TURNS_NEEDED }).map((_, i) => (
@@ -547,22 +630,70 @@ export default function FishingGame() {
         </div>
       )}
 
-      {/* 丟竿 / 收線按鈕 */}
+      {/* 丟竿按鈕 */}
       <div className="fixed right-4 bottom-6 z-20">
         <button
           type="button"
-          onPointerDown={onButton}
+          onPointerDown={startAiming}
           disabled={!buttonActive}
           className={`w-28 h-28 rounded-full text-white shadow-xl flex flex-col items-center justify-center select-none transition-transform ${
             buttonActive
               ? "bg-[#4FC3F7] active:scale-90 active:bg-[#039BE5]"
-              : "bg-gray-300"
-          } ${phase === "hooked" ? "animate-pulse" : ""}`}
+              : phase === "aiming"
+                ? "bg-[#FFB74D] animate-pulse"
+                : "bg-gray-300"
+          }`}
         >
           <span className="text-4xl leading-none">{buttonLabel.emoji}</span>
           <span className="text-lg font-black mt-1">{buttonLabel.text}</span>
         </button>
       </div>
+
+      {/* 水桶清單 */}
+      {showBucket && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowBucket(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 shadow-2xl animate-bounce-in w-[320px] max-w-[90vw] max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-black text-[#4FC3F7] text-center mb-3">
+              🪣 水桶裡有什麼？
+            </h2>
+            {bucketSummary.length === 0 ? (
+              <p className="text-center text-gray-400 font-bold py-6">
+                水桶還是空的，快去釣魚吧！
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {bucketSummary.map(({ type, count }) => (
+                  <div
+                    key={type.kind}
+                    className={`rounded-2xl p-3 flex items-center gap-2 ${
+                      type.isJunk ? "bg-gray-100" : "bg-[#E1F5FE]"
+                    }`}
+                  >
+                    <span className="text-4xl leading-none">{type.emoji}</span>
+                    <div>
+                      <div className="font-black text-gray-700">{type.label}</div>
+                      <div className="text-sm font-bold text-[#FFB74D]">× {count}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowBucket(false)}
+              className="mt-4 w-full py-3 rounded-2xl bg-[#4FC3F7] text-white font-bold text-lg active:scale-95 transition-transform"
+            >
+              好
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 池裡有什麼 */}
       <div className="fixed top-5 left-20 z-10 flex gap-1 pointer-events-none">
