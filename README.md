@@ -24,6 +24,7 @@
 - **數一數** — 隨機顯示 1～5 個水果（蘋果/香蕉/葡萄/橘子/草莓），點選正確數字
 - **賽車** — Canvas 跑道自動捲動，中央方向盤觸控轉動控制車子平滑移動。3-2-1 倒數開始、2 分鐘計時、目標 30 金幣。吃到金幣會飛向右上角收集欄。撞到石頭會扣一顆愛心，撞 3 次就結束
 - **玩沙沙** — 側視圖沙盤，沙子以一維高度場模擬並有安息角崩落。手指可以推沙、挖沙堆成沙丘；水桶可以倒沙；壓平板可以把沙壓平；城堡 / 波浪 / 小山是倒扣的模具，壓進沙堆再拿起來就留下形狀，被模具壓過的沙會變紮實不易崩塌
+- **釣魚** — 釣魚池裡有鯊魚、鯉魚、螃蟹和輪胎游來游去。按右下角「丟竿」把鉤子拋進池裡，等魚上鉤後會出現捲線輪，點 3 次轉滿 3 圈就釣上來，飛進左邊的水桶
 
 ## 技術架構
 
@@ -49,19 +50,21 @@ src/
 │   │   ├── memory/         # 記憶翻牌
 │   │   ├── counting/       # 數一數
 │   │   ├── racing/         # 賽車
-│   │   └── sand/           # 玩沙沙
+│   │   ├── sand/           # 玩沙沙
+│   │   └── fishing/        # 釣魚
 │   ├── ~offline/           # 離線 fallback
 │   ├── sw.ts               # Service Worker
 │   └── manifest.ts         # PWA Manifest
 ├── components/
 │   ├── baby/               # 氣球遊戲 + 粒子 Canvas
-│   ├── toddler/            # 畫畫板 / 記憶翻牌 / 數數 / 賽車 / 玩沙沙
+│   ├── toddler/            # 畫畫板 / 記憶翻牌 / 數數 / 賽車 / 玩沙沙 / 釣魚
 │   ├── svg/                # SVG 圖形 (shapes/animals/fruits)
 │   └── ui/                 # BigButton / BackButton / ParentSettings / TimerOverlay / RegisterSW
 ├── lib/
 │   ├── audio/              # AudioManager (singleton) + synth.ts (合成音效)
 │   ├── particles/          # Canvas 粒子引擎
 │   ├── sand/               # 沙子高度場物理（純函式，含 node --test 測試）
+│   ├── fishing/            # 釣魚遊戲邏輯（魚種、游動、收線圈數，含測試）
 │   ├── templates/          # 描繪圖線模板 (小馬/兔子/迷你豬)
 │   ├── settings/           # SettingsContext + localStorage
 │   └── utils/              # 顏色、隨機數工具
