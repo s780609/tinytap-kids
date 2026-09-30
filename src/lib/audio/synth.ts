@@ -114,3 +114,24 @@ export function playWrong(ctx: AudioContext, gain: GainNode) {
   osc.start();
   osc.stop(ctx.currentTime + 0.2);
 }
+
+export function playSand(ctx: AudioContext, gain: GainNode) {
+  const bufferSize = Math.floor(ctx.sampleRate * 0.12);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    const t = i / bufferSize;
+    data[i] = (Math.random() * 2 - 1) * Math.sin(t * Math.PI) * 0.18;
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 900;
+  filter.Q.value = 0.7;
+
+  source.connect(filter);
+  filter.connect(gain);
+  source.start();
+}

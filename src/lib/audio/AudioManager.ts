@@ -8,6 +8,7 @@ import {
   playSuccess,
   playBubble,
   playWrong,
+  playSand,
 } from "./synth";
 
 class AudioManager {
@@ -115,6 +116,11 @@ class AudioManager {
   wrong() {
     this.ensureCtx();
     if (this.ctx && this.gainNode) playWrong(this.ctx, this.gainNode);
+  }
+
+  sand() {
+    this.ensureCtx();
+    if (this.ctx && this.gainNode) playSand(this.ctx, this.gainNode);
   }
 }
 
