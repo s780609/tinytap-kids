@@ -7,12 +7,14 @@ import {
   CATCH_TYPES,
   REEL_TURNS_NEEDED,
   angleDelta,
-  createSwimmer,
   createSwimmers,
   getCatchType,
   isReelDone,
   nearestSwimmer,
   pickRandomKind,
+  removeGone,
+  spawnFromEdge,
+  tickPopulation,
   turnsFromAngle,
   updateSwimmers,
   type CatchKind,
@@ -38,7 +40,10 @@ interface Geometry {
   bucket: { x: number; y: number };
 }
 
-const SWIMMER_COUNT = 8;
+/** 開場隨機 6～9 隻，之後每隔幾秒輪替 */
+const initialCount = () => 6 + Math.floor(Math.random() * 4);
+/** 下一次族群輪替的間隔（秒） */
+const nextSpawnDelay = () => 3 + Math.random() * 4;
 const CAST_DURATION = 0.7;
 const LAND_DURATION = 0.6;
 const FLY_DURATION = 0.6;
@@ -68,6 +73,7 @@ export default function FishingGame() {
   const biteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timeRef = useRef(0);
+  const spawnTimerRef = useRef(3);
   const animRef = useRef<number | null>(null);
 
   const setPhaseBoth = useCallback((p: Phase) => {
@@ -108,7 +114,7 @@ export default function FishingGame() {
       bucket: { x: 62, y: h - 96 },
     };
     if (swimmersRef.current.length === 0) {
-      swimmersRef.current = createSwimmers(SWIMMER_COUNT);
+      swimmersRef.current = createSwimmers(initialCount());
     }
   }, []);
 
@@ -211,7 +217,9 @@ export default function FishingGame() {
       biteTimerRef.current = setTimeout(() => {
         if (phaseRef.current !== "waiting") return;
         const hook = hookRef.current;
-        attractedRef.current = nearestSwimmer(swimmersRef.current, hook.x, hook.y);
+        const target = nearestSwimmer(swimmersRef.current, hook.x, hook.y);
+        if (target) target.leaving = false;
+        attractedRef.current = target;
       }, 800 + Math.random() * 1700);
     };
 
@@ -224,10 +232,7 @@ export default function FishingGame() {
         setBucket((prev) => [...prev, caught.kind]);
         swimmersRef.current = swimmersRef.current.filter((s) => s.id !== caught.id);
         // 補一隻隨機種類，從池邊游進來
-        const fresh = createSwimmer(pickRandomKind());
-        fresh.x = Math.random() < 0.5 ? 0.03 : 0.97;
-        fresh.dir = fresh.x < 0.5 ? 1 : -1;
-        swimmersRef.current.push(fresh);
+        swimmersRef.current.push(spawnFromEdge(pickRandomKind()));
         if (type.isJunk) {
           showMessage(`撿到${type.label}！池塘變乾淨了 ✨`, 2200);
           audioManager.bubble();
@@ -250,6 +255,17 @@ export default function FishingGame() {
         (s) => s !== attracted && s !== hookedRef.current
       );
       updateSwimmers(free, dt);
+
+      // 族群輪替：隨機生成新的魚，滿了就讓舊的游走
+      spawnTimerRef.current -= dt;
+      if (spawnTimerRef.current <= 0) {
+        spawnTimerRef.current = nextSpawnDelay();
+        tickPopulation(free);
+        for (const s of free) {
+          if (!swimmersRef.current.includes(s)) swimmersRef.current.push(s);
+        }
+      }
+      swimmersRef.current = removeGone(swimmersRef.current);
 
       if (p === "casting") {
         hook.t = Math.min(1, hook.t + dt / CAST_DURATION);

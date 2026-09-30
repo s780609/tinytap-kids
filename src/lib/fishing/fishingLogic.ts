@@ -35,12 +35,18 @@ export interface Swimmer {
   x: number;
   y: number;
   baseY: number;
+  /** 正在游向的目標深度，到了會再隨機換一個 */
+  targetY: number;
   dir: 1 | -1;
   speed: number;
   phase: number;
+  /** true = 準備游出池塘，不再折返 */
+  leaving?: boolean;
 }
 
 export const REEL_TURNS_NEEDED = 3;
+/** 池裡最多同時有幾隻，滿了會讓舊的游走 */
+export const MAX_SWIMMERS = 11;
 
 export const CATCH_TYPES: CatchType[] = [
   { kind: "shark", label: "鯊魚", emoji: "🦈", size: 64, speed: 0.16, minDepth: 0.12, maxDepth: 0.8, isJunk: false, weight: 3 },
@@ -79,6 +85,7 @@ export function createSwimmer(kind: CatchKind, rand: () => number = Math.random)
     x: 0.05 + rand() * 0.9,
     y: baseY,
     baseY,
+    targetY: type.minDepth + rand() * (type.maxDepth - type.minDepth),
     dir: rand() < 0.5 ? -1 : 1,
     speed: type.speed * (0.8 + rand() * 0.4),
     phase: rand() * Math.PI * 2,
@@ -100,19 +107,66 @@ export function createSwimmers(count: number, rand: () => number = Math.random):
   return kinds.slice(0, count).map((k) => createSwimmer(k, rand));
 }
 
-/** 每幀更新游動位置；dt 為秒。 */
-export function updateSwimmers(swimmers: Swimmer[], dt: number): void {
+/** 從池塘左或右邊外側出生，朝池內游 */
+export function spawnFromEdge(kind: CatchKind, rand: () => number = Math.random): Swimmer {
+  const s = createSwimmer(kind, rand);
+  const fromLeft = rand() < 0.5;
+  s.x = fromLeft ? -0.08 : 1.08;
+  s.dir = fromLeft ? 1 : -1;
+  return s;
+}
+
+/**
+ * 族群輪替：未滿時隨機生成一隻新的；滿了就挑一隻讓牠游出池塘。
+ * 由呼叫端每隔幾秒呼叫一次。
+ */
+export function tickPopulation(swimmers: Swimmer[], rand: () => number = Math.random): void {
+  if (swimmers.length < MAX_SWIMMERS) {
+    swimmers.push(spawnFromEdge(pickRandomKind(rand), rand));
+    return;
+  }
+  const staying = swimmers.filter((s) => !s.leaving);
+  if (staying.length === 0) return;
+  const pick = staying[Math.min(staying.length - 1, Math.floor(rand() * staying.length))];
+  pick.leaving = true;
+  pick.dir = pick.x < 0.5 ? -1 : 1;
+}
+
+/** 移除已經游出池塘的 */
+export function removeGone(swimmers: Swimmer[]): Swimmer[] {
+  return swimmers.filter((s) => !(s.leaving && (s.x < -0.1 || s.x > 1.1)));
+}
+
+/** 每幀更新游動位置（左右 + 上下）；dt 為秒。 */
+export function updateSwimmers(
+  swimmers: Swimmer[],
+  dt: number,
+  rand: () => number = Math.random
+): void {
   for (const s of swimmers) {
+    const type = getCatchType(s.kind);
+
+    // 左右：碰到池邊折返（準備游走的不折返）
     s.x += s.dir * s.speed * dt;
-    if (s.x > 0.97) {
-      s.x = 0.97;
-      s.dir = -1;
-    } else if (s.x < 0.03) {
-      s.x = 0.03;
-      s.dir = 1;
+    if (!s.leaving) {
+      if (s.x > 0.97 && s.dir === 1) s.dir = -1;
+      else if (s.x < 0.03 && s.dir === -1) s.dir = 1;
     }
+
+    // 上下：游向目標深度，到了再隨機換一個（垃圾沉在池底不動）
+    if (!type.isJunk) {
+      const dy = s.targetY - s.baseY;
+      const step = s.speed * 0.6 * dt;
+      if (Math.abs(dy) <= step) {
+        s.baseY = s.targetY;
+        s.targetY = type.minDepth + rand() * (type.maxDepth - type.minDepth);
+      } else {
+        s.baseY += Math.sign(dy) * step;
+      }
+    }
+
     s.phase += dt * 2;
-    s.y = s.baseY + Math.sin(s.phase) * 0.02;
+    s.y = s.baseY + Math.sin(s.phase) * 0.015;
   }
 }
 

@@ -7,6 +7,10 @@ import {
   updateSwimmers,
   nearestSwimmer,
   angleDelta,
+  spawnFromEdge,
+  tickPopulation,
+  removeGone,
+  MAX_SWIMMERS,
   turnsFromAngle,
   isReelDone,
   type Swimmer,
@@ -56,7 +60,7 @@ test("魚的深度範圍互相重疊，不是固定一層一種", () => {
 });
 
 test("updateSwimmers 會前進並在池邊折返，x 永遠在 0~1", () => {
-  const s: Swimmer = { id: 1, kind: "koi", x: 0.98, y: 0.5, baseY: 0.5, dir: 1, speed: 0.5, phase: 0 };
+  const s: Swimmer = { id: 1, kind: "koi", x: 0.98, y: 0.5, baseY: 0.5, targetY: 0.5, dir: 1, speed: 0.5, phase: 0 };
   updateSwimmers([s], 0.1);
   assert.equal(s.dir, -1, "碰到右邊應折返");
   for (let i = 0; i < 200; i++) updateSwimmers([s], 0.05);
@@ -65,9 +69,9 @@ test("updateSwimmers 會前進並在池邊折返，x 永遠在 0~1", () => {
 
 test("nearestSwimmer 回傳離鉤子最近的一隻", () => {
   const list: Swimmer[] = [
-    { id: 1, kind: "koi", x: 0.1, y: 0.1, baseY: 0.1, dir: 1, speed: 0.1, phase: 0 },
-    { id: 2, kind: "shark", x: 0.6, y: 0.6, baseY: 0.6, dir: 1, speed: 0.1, phase: 0 },
-    { id: 3, kind: "tire", x: 0.9, y: 0.9, baseY: 0.9, dir: 1, speed: 0.1, phase: 0 },
+    { id: 1, kind: "koi", x: 0.1, y: 0.1, baseY: 0.1, targetY: 0.1, dir: 1, speed: 0.1, phase: 0 },
+    { id: 2, kind: "shark", x: 0.6, y: 0.6, baseY: 0.6, targetY: 0.6, dir: 1, speed: 0.1, phase: 0 },
+    { id: 3, kind: "tire", x: 0.9, y: 0.9, baseY: 0.9, targetY: 0.9, dir: 1, speed: 0.1, phase: 0 },
   ];
   assert.equal(nearestSwimmer(list, 0.55, 0.5)?.id, 2);
   assert.equal(nearestSwimmer(list, 0.9, 0.95)?.id, 3, "瞄準池底就能釣到輪胎");
@@ -90,4 +94,58 @@ test("手指畫圈累積 3 圈才算收線成功，反方向也算", () => {
   assert.equal(isReelDone(1080), true);
   assert.equal(isReelDone(-1100), true);
   assert.equal(turnsFromAngle(5000), 3, "不會超過 3");
+});
+
+test("魚會上下游動：深度會明顯改變，但不超出該種類的深度範圍", () => {
+  const rand = seeded(7);
+  const swimmers = createSwimmers(8, rand).filter((s) => !CATCH_TYPES.find((c) => c.kind === s.kind)!.isJunk);
+  const startY = swimmers.map((s) => s.baseY);
+  let maxMove = 0;
+  for (let i = 0; i < 1200; i++) {
+    updateSwimmers(swimmers, 0.05, rand);
+    swimmers.forEach((s, idx) => {
+      const type = CATCH_TYPES.find((c) => c.kind === s.kind)!;
+      assert.ok(s.baseY >= type.minDepth - 1e-9 && s.baseY <= type.maxDepth + 1e-9, `${s.kind} 游出深度範圍`);
+      maxMove = Math.max(maxMove, Math.abs(s.baseY - startY[idx]));
+    });
+  }
+  assert.ok(maxMove > 0.15, `應有明顯的上下移動，實際最大 ${maxMove}`);
+});
+
+test("輪胎和靴子沉在池底，不會上下游", () => {
+  const s: Swimmer = { id: 9, kind: "tire", x: 0.5, y: 0.9, baseY: 0.9, targetY: 0.9, dir: 1, speed: 0.03, phase: 0 };
+  for (let i = 0; i < 600; i++) updateSwimmers([s], 0.05, seeded(3));
+  assert.ok(Math.abs(s.baseY - 0.9) < 1e-9);
+});
+
+test("spawnFromEdge 從池塘外側出生並往池內游", () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const s = spawnFromEdge("koi", seeded(seed));
+    assert.ok(s.x < 0 || s.x > 1, "應從池外開始");
+    assert.equal(s.dir, s.x < 0 ? 1 : -1, "應朝池內游");
+    const x0 = s.x;
+    for (let i = 0; i < 40; i++) updateSwimmers([s], 0.05, seeded(seed));
+    assert.ok(Math.abs(s.x - 0.5) < Math.abs(x0 - 0.5), "應該游進池塘");
+  }
+});
+
+test("tickPopulation：未滿時隨機生成新的，滿了就讓一隻游走", () => {
+  const rand = seeded(11);
+  const swimmers = createSwimmers(6, rand);
+  tickPopulation(swimmers, rand);
+  assert.equal(swimmers.length, 7, "未滿應新增一隻");
+  while (swimmers.length < MAX_SWIMMERS) tickPopulation(swimmers, rand);
+  tickPopulation(swimmers, rand);
+  assert.equal(swimmers.length, MAX_SWIMMERS, "滿了不再新增");
+  assert.equal(swimmers.filter((s) => s.leaving).length, 1, "應有一隻準備游走");
+});
+
+test("準備游走的魚不折返，游出池外後被 removeGone 移除", () => {
+  const s: Swimmer = { id: 5, kind: "koi", x: 0.9, y: 0.5, baseY: 0.5, targetY: 0.5, dir: 1, speed: 0.5, phase: 0, leaving: true };
+  let list = [s];
+  for (let i = 0; i < 20; i++) {
+    updateSwimmers(list, 0.05, seeded(1));
+    list = removeGone(list);
+  }
+  assert.equal(list.length, 0);
 });
