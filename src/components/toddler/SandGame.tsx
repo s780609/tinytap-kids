@@ -424,7 +424,7 @@ export default function SandGame() {
         ctx.fill();
         ctx.stroke();
       } else if (m.kind === "pour") {
-        const top = p.y + 6;
+        const top = p.y - 2;
         const bottom = Math.max(top, surfaceY(g, f, p.x));
         ctx.strokeStyle = "rgba(214,178,124,0.85)";
         ctx.lineWidth = 4;
@@ -433,10 +433,16 @@ export default function SandGame() {
         ctx.moveTo(p.x, top);
         ctx.lineTo(p.x, bottom);
         ctx.stroke();
+        // 桶子傾斜，桶口朝向手指位置，看起來才像在倒沙
+        ctx.save();
+        ctx.translate(p.x - 18, p.y - 18);
+        ctx.rotate((125 * Math.PI) / 180);
+        ctx.fillStyle = "#000";
         ctx.font = "44px serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("🪣", p.x, p.y - 22);
+        ctx.fillText("🪣", 0, 0);
+        ctx.restore();
       } else {
         // 模具剖面：外側是杯壁，底緣在 p.y，凹槽沿 profile 描出（透明，看得到沙填進去）
         const tool = m.tool;
