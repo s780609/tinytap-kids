@@ -705,7 +705,14 @@ export default function PinballGame() {
       // 在坡道上的彈珠畫大一點，看起來在上層
       const drawBall = (r: number) => {
         if (!b || table.warp) return;
-        const g = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, r);
+        if (b.onRamp) {
+          // 彈珠落在坡道面上的影子
+          ctx.fillStyle = "rgba(0,0,0,0.45)";
+          ctx.beginPath();
+          ctx.ellipse(b.x + 3, b.y + 6, r, r * 0.7, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const g =ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, r);
         g.addColorStop(0, "#FFFFFF");
         g.addColorStop(0.6, "#CFD8DC");
         g.addColorStop(1, "#78909C");
@@ -723,26 +730,87 @@ export default function PinballGame() {
       {
         const ramp = table.ramp;
         const target = table.mission.stage === 2;
-        ctx.lineCap = "round";
+        const tracePath = () => {
+          ctx.beginPath();
+          ramp.path.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+        };
+        const traceRails = () => {
+          ctx.beginPath();
+          for (const r of ramp.rails) {
+            ctx.moveTo(r.ax, r.ay);
+            ctx.lineTo(r.bx, r.by);
+          }
+        };
+        // 入口和出口貼著檯面、越往上越高：用上下漸層讓兩端淡、高處實
+        const lift = (color: string, low: number, high: number) => {
+          const g = ctx.createLinearGradient(0, 455, 0, 385);
+          g.addColorStop(0, `rgba(${color},${low})`);
+          g.addColorStop(1, `rgba(${color},${high})`);
+          return g;
+        };
+        ctx.lineCap = "butt";
         ctx.lineJoin = "round";
-        ctx.strokeStyle = "rgba(255,255,255,0.09)";
-        ctx.lineWidth = 24;
+
+        // 落在檯面上的影子（往右下偏移，越高的地方越明顯）
+        ctx.save();
+        ctx.translate(9, 12);
+        ctx.strokeStyle = lift("0,0,0", 0, 0.5);
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 28;
+        tracePath();
+        ctx.stroke();
+        ctx.restore();
+
+        // 坡道面：不透明的深色板子，蓋住下面的東西才像在上層
+        ctx.strokeStyle = lift("24,38,84", 0.35, 0.94);
+        ctx.lineWidth = 27;
+        tracePath();
+        ctx.stroke();
+        ctx.strokeStyle = lift("130,200,255", 0.05, 0.16);
+        ctx.lineWidth = 14;
+        tracePath();
+        ctx.stroke();
+
+        // 橫向的軌枕
+        ctx.strokeStyle = "rgba(255,255,255,0.22)";
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ramp.path.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+        let next = 12;
+        let walked = 0;
+        for (let i = 0; i < ramp.path.length - 1; i++) {
+          const p = ramp.path[i];
+          const q = ramp.path[i + 1];
+          const len = Math.hypot(q.x - p.x, q.y - p.y);
+          const ux = (q.x - p.x) / len;
+          const uy = (q.y - p.y) / len;
+          while (next <= walked + len) {
+            const d = next - walked;
+            const x = p.x + ux * d;
+            const y = p.y + uy * d;
+            ctx.moveTo(x - uy * 11, y + ux * 11);
+            ctx.lineTo(x + uy * 11, y - ux * 11);
+            next += 20;
+          }
+          walked += len;
+        }
+        ctx.stroke();
+
+        // 欄杆：先畫深色的側壁，再疊上發光的扶手
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#0B1030";
+        ctx.lineWidth = 6;
+        traceRails();
         ctx.stroke();
         ctx.strokeStyle = target ? "#FFEA00" : "#69F0AE";
         ctx.shadowColor = ctx.strokeStyle;
         ctx.shadowBlur = target ? 12 + Math.sin(time * 8) * 5 : 8;
         ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        for (const r of ramp.rails) {
-          ctx.moveTo(r.ax, r.ay);
-          ctx.lineTo(r.bx, r.by);
-        }
+        traceRails();
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
-      if (b?.onRamp) drawBall(BALL_R * 1.15);
+      if (b?.onRamp) drawBall(BALL_R * 1.3);
 
       // 任務提示箭頭：指向現在該打的目標
       {
