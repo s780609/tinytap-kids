@@ -46,9 +46,24 @@ const PLANET_COLORS: Record<string, [string, string]> = {
   "planet-a": ["#FF80AB", "#C51162"],
   "planet-b": ["#80D8FF", "#0277BD"],
   "planet-c": ["#FFD180", "#E65100"],
-  "kicker-l": ["#B9F6CA", "#00C853"],
-  "kicker-r": ["#B9F6CA", "#00C853"],
 };
+
+/** 黃色提示箭頭：尖端在 (x, y)，朝 angle 方向（0 = 往右） */
+function hintArrow(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = "#FFEA00";
+  ctx.shadowColor = "#FFEA00";
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-16, -11);
+  ctx.lineTo(-16, 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
 
 function starPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.beginPath();
@@ -324,6 +339,40 @@ export default function PinballGame() {
           addScore(e.score);
           showBanner(`⭐ 星星全亮！+${e.score} ⭐`, 2200);
           audioManager.success();
+        } else if (e.type === "slingshot") {
+          addScore(e.score);
+          flashRef.current.set(e.id, timeRef.current);
+          audioManager.bubble();
+        } else if (e.type === "target") {
+          addScore(e.score);
+          popupsRef.current.push({ x: e.x - 30, y: e.y, text: `+${e.score}`, t: timeRef.current });
+          audioManager.pop();
+        } else if (e.type === "targetBank") {
+          addScore(e.score);
+          showBanner(`🎯 靶子全倒！+${e.score}`, 2000);
+          audioManager.success();
+        } else if (e.type === "wormhole") {
+          addScore(e.score);
+          popupsRef.current.push({ x: e.x, y: e.y - 26, text: `+${e.score}`, t: timeRef.current });
+          trailRef.current = [];
+          audioManager.whoosh();
+        } else if (e.type === "warpOut") {
+          trailRef.current = [];
+          audioManager.bubble();
+        } else if (e.type === "ramp") {
+          addScore(e.score);
+          popupsRef.current.push({ x: e.x + 30, y: e.y - 10, text: `+${e.score}`, t: timeRef.current });
+          audioManager.ding();
+        } else if (e.type === "kickback") {
+          flashRef.current.set(`kickback-${e.side}`, timeRef.current);
+          showBanner("🛟 彈回去！");
+          audioManager.whoosh();
+        } else if (e.type === "mission") {
+          showBanner(e.stage === 1 ? "🎯 全倒！快進黑洞 🌀" : "🌀 穿越成功！衝上坡道 🚀", 2200);
+        } else if (e.type === "missionComplete") {
+          addScore(e.score);
+          showBanner(`🎖️ 任務完成！+${e.score}　階級 ${e.rank}`, 2600);
+          audioManager.success();
         } else if (e.type === "exitLane") {
           saveUntilRef.current = timeRef.current + BALL_SAVE_SECONDS;
         } else if (e.type === "drain") {
@@ -360,7 +409,7 @@ export default function PinballGame() {
       readyRef.current = isBallOnPlunger(table);
       visPullRef.current += (table.plunger.pull - visPullRef.current) * Math.min(1, dt * 45);
 
-      if (b) {
+      if (b && !table.warp) {
         trailRef.current.push({ x: b.x, y: b.y });
         if (trailRef.current.length > 10) trailRef.current.shift();
       }
@@ -434,6 +483,111 @@ export default function PinballGame() {
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
+      }
+
+      // 黑洞（入口）與白洞（出口）
+      {
+        const wh = table.wormhole;
+        const target = table.mission.stage === 1;
+        const hole = ctx.createRadialGradient(wh.x, wh.y, 2, wh.x, wh.y, wh.r + 6);
+        hole.addColorStop(0, "#000000");
+        hole.addColorStop(0.65, "#1A0033");
+        hole.addColorStop(1, "rgba(213,0,249,0)");
+        ctx.fillStyle = hole;
+        ctx.beginPath();
+        ctx.arc(wh.x, wh.y, wh.r + 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = target ? "#FFEA00" : "#EA80FC";
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = target ? 14 + Math.sin(time * 8) * 6 : 8;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        for (let k = 0; k < 3; k++) {
+          const a = time * 3 + (k * Math.PI * 2) / 3;
+          ctx.beginPath();
+          ctx.arc(wh.x, wh.y, wh.r - 3 + k * 2.5, a, a + 1.5);
+          ctx.stroke();
+        }
+        const warping = table.warp ? 1 : 0;
+        const outR = 13 + Math.sin(time * 4) * 2 + warping * 8;
+        const out = ctx.createRadialGradient(wh.outX, wh.outY, 1, wh.outX, wh.outY, outR);
+        out.addColorStop(0, `rgba(255,255,255,${0.55 + warping * 0.45})`);
+        out.addColorStop(0.5, "rgba(128,216,255,0.35)");
+        out.addColorStop(1, "rgba(128,216,255,0)");
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = out;
+        ctx.beginPath();
+        ctx.arc(wh.outX, wh.outY, outR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 出球道上方的單向導板
+      ctx.strokeStyle = "rgba(0,229,255,0.7)";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (const d of table.deflectors) {
+        ctx.moveTo(d.ax, d.ay);
+        ctx.lineTo(d.bx, d.by);
+      }
+      ctx.stroke();
+
+      // 出球道的救球燈
+      for (const side of ["left", "right"] as const) {
+        const x = side === "left" ? 24 : 346;
+        const hitAt = flashRef.current.get(`kickback-${side}`);
+        const flash = hitAt !== undefined ? Math.max(0, 1 - (time - hitAt) / 0.4) : 0;
+        const lit = table.kickbacks[side] || flash > 0;
+        ctx.fillStyle = lit ? "#69F0AE" : "rgba(105,240,174,0.15)";
+        ctx.shadowColor = "#69F0AE";
+        ctx.shadowBlur = lit ? 10 + flash * 14 : 0;
+        ctx.beginPath();
+        ctx.moveTo(x, 606);
+        ctx.lineTo(x - 9, 622);
+        ctx.lineTo(x + 9, 622);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // 落靶
+      for (const t of table.targets) {
+        ctx.beginPath();
+        ctx.roundRect(t.ax - 4, t.ay, 8, t.by - t.ay, 3);
+        if (t.down) {
+          ctx.strokeStyle = "rgba(255,171,64,0.3)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        } else {
+          ctx.shadowColor = "#FFAB40";
+          ctx.shadowBlur = table.mission.stage === 0 ? 10 + Math.sin(time * 8) * 5 : 8;
+          ctx.fillStyle = "#FFAB40";
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      // 三角彈射板
+      for (const sl of table.slingshots) {
+        const hitAt = flashRef.current.get(sl.id);
+        const flash = hitAt !== undefined ? Math.max(0, 1 - (time - hitAt) / 0.2) : 0;
+        ctx.beginPath();
+        ctx.moveTo(sl.ax, sl.ay);
+        ctx.lineTo(sl.bx, sl.by);
+        ctx.lineTo(sl.cx, sl.cy);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(213,0,249,${0.22 + flash * 0.5})`;
+        ctx.fill();
+        ctx.strokeStyle = flash > 0 ? "#FFFFFF" : "#EA80FC";
+        ctx.shadowColor = "#D500F9";
+        ctx.shadowBlur = 10 + flash * 16;
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(sl.ax, sl.ay);
+        ctx.lineTo(sl.bx, sl.by);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
       }
 
       // 星球彈射器
@@ -548,8 +702,10 @@ export default function PinballGame() {
         ctx.fill();
       }
       const b = table.ball;
-      if (b) {
-        const g = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, BALL_R);
+      // 在坡道上的彈珠畫大一點，看起來在上層
+      const drawBall = (r: number) => {
+        if (!b || table.warp) return;
+        const g = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, r);
         g.addColorStop(0, "#FFFFFF");
         g.addColorStop(0.6, "#CFD8DC");
         g.addColorStop(1, "#78909C");
@@ -557,10 +713,52 @@ export default function PinballGame() {
         ctx.shadowBlur = 12;
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
+      };
+      if (!b?.onRamp) drawBall(BALL_R);
+
+      // 坡道（上層，蓋在下層的彈珠上面）
+      {
+        const ramp = table.ramp;
+        const target = table.mission.stage === 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "rgba(255,255,255,0.09)";
+        ctx.lineWidth = 24;
+        ctx.beginPath();
+        ramp.path.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+        ctx.stroke();
+        ctx.strokeStyle = target ? "#FFEA00" : "#69F0AE";
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = target ? 12 + Math.sin(time * 8) * 5 : 8;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (const r of ramp.rails) {
+          ctx.moveTo(r.ax, r.ay);
+          ctx.lineTo(r.bx, r.by);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
       }
+      if (b?.onRamp) drawBall(BALL_R * 1.15);
+
+      // 任務提示箭頭：指向現在該打的目標
+      {
+        const bob = Math.sin(time * 6) * 4;
+        const stage = table.mission.stage;
+        if (stage === 0) hintArrow(ctx, 340 + bob, 329, 0);
+        else if (stage === 1) hintArrow(ctx, table.wormhole.x, table.wormhole.y - 24 + bob, Math.PI / 2);
+        else hintArrow(ctx, 92, 452 + bob, -Math.PI / 2);
+      }
+
+      // 階級（檯面左上角，弧線外側）
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold 20px Arial";
+      ctx.fillStyle = "#FFEA00";
+      ctx.fillText(`🎖️${table.mission.rank}`, 36, 40);
 
       // 分數跳字
       ctx.textAlign = "center";
