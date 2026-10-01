@@ -48,6 +48,17 @@ const PLANET_COLORS: Record<string, [string, string]> = {
   "planet-c": ["#FFD180", "#E65100"],
 };
 
+/** 坡道支撐柱的位置（檯面座標），立在欄杆外側 */
+const RAMP_POSTS: [number, number][] = [
+  [104, 380],
+  [104, 300],
+  [95, 208],
+  [43, 208],
+  [34, 290],
+  [34, 370],
+  [34, 440],
+];
+
 /** 黃色提示箭頭：尖端在 (x, y)，朝 angle 方向（0 = 往右） */
 function hintArrow(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) {
   ctx.save();
@@ -760,7 +771,19 @@ export default function PinballGame() {
         ctx.lineWidth = 28;
         tracePath();
         ctx.stroke();
+        // 支撐柱的影子
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(0,0,0,0.5)";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        for (const [px, py] of RAMP_POSTS) {
+          ctx.moveTo(px - 9, py - 12);
+          ctx.lineTo(px, py);
+        }
+        ctx.stroke();
         ctx.restore();
+        ctx.lineCap = "butt";
 
         // 坡道面：不透明的深色板子，蓋住下面的東西才像在上層
         ctx.strokeStyle = lift("24,38,84", 0.35, 0.94);
@@ -796,6 +819,56 @@ export default function PinballGame() {
         }
         ctx.stroke();
 
+        // 入口斜坡：下緣貼著檯面（亮），往上爬到坡道面（暗），橫紋越往上越密
+        {
+          const e = ramp.entry;
+          const left = e.x0 - 3;
+          const bottom = e.y + 8;
+          const top = e.y - 36;
+          const rightAt = (y: number) => left + 26 + (15 * (y - top)) / (bottom - top);
+          ctx.beginPath();
+          ctx.moveTo(left, bottom);
+          ctx.lineTo(rightAt(bottom), bottom);
+          ctx.lineTo(rightAt(top), top);
+          ctx.lineTo(left, top);
+          ctx.closePath();
+          const slope = ctx.createLinearGradient(0, bottom, 0, top);
+          slope.addColorStop(0, target ? "rgba(255,234,0,0.75)" : "rgba(105,240,174,0.75)");
+          slope.addColorStop(0.45, "rgba(52,110,130,0.95)");
+          slope.addColorStop(1, "rgba(24,38,84,0.94)");
+          ctx.fillStyle = slope;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.3)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          for (let y = bottom - 9, gap = 9; y > top + 2; gap *= 0.8, y -= gap) {
+            ctx.moveTo(left + 2, y);
+            ctx.lineTo(rightAt(y) - 2, y);
+          }
+          ctx.stroke();
+          // 往上跑的箭頭
+          ctx.lineWidth = 3;
+          ctx.lineCap = "round";
+          for (let k = 0; k < 3; k++) {
+            const y = bottom - 8 - k * 11;
+            const cx = (left + rightAt(y)) / 2;
+            const pulse = (Math.sin(time * 7 - k * 1.2) + 1) / 2;
+            ctx.strokeStyle = `rgba(255,255,255,${0.25 + pulse * 0.7})`;
+            ctx.beginPath();
+            ctx.moveTo(cx - 8, y + 4);
+            ctx.lineTo(cx, y - 3);
+            ctx.lineTo(cx + 8, y + 4);
+            ctx.stroke();
+          }
+          // 斜坡下緣
+          ctx.strokeStyle = "#FFFFFF";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(left, bottom);
+          ctx.lineTo(rightAt(bottom), bottom);
+          ctx.stroke();
+        }
+
         // 欄杆：先畫深色的側壁，再疊上發光的扶手
         ctx.lineCap = "round";
         ctx.strokeStyle = "#0B1030";
@@ -809,6 +882,21 @@ export default function PinballGame() {
         traceRails();
         ctx.stroke();
         ctx.shadowBlur = 0;
+
+        // 支撐柱：欄杆外側的金屬柱頭
+        for (const [px, py] of RAMP_POSTS) {
+          const g = ctx.createRadialGradient(px - 1.5, py - 1.5, 0.5, px, py, 4.5);
+          g.addColorStop(0, "#FFFFFF");
+          g.addColorStop(0.5, "#B0BEC5");
+          g.addColorStop(1, "#37474F");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#0B1030";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
       }
       if (b?.onRamp) drawBall(BALL_R * 1.3);
 
