@@ -175,6 +175,17 @@ test("往下拉拉桿，彈珠會跟著下沉；拉桿有最大行程", () => {
   assert.equal(table.plunger.pull, 0);
 });
 
+test("拉桿拉到底又馬上推回原位，彈珠會跟著被頂上來，不會掉下去", () => {
+  const table = createTable();
+  resetBall(table);
+  setPlungerPull(table, PLUNGER_MAX_PULL);
+  run(table, 0.6);
+  setPlungerPull(table, 0);
+  const events = run(table, 1);
+  assert.ok(!events.some((e) => e.type === "drain"), "不應掉球");
+  assert.ok(isBallOnPlunger(table), "彈珠應該還在拉桿上");
+});
+
 test("拉到底放開：彈珠被打出軌道，拉桿回到原位", () => {
   const table = createTable();
   resetBall(table);

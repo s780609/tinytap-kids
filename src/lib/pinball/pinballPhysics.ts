@@ -383,6 +383,13 @@ export function setPlungerPull(table: Table, pull: number): void {
   table.plunger.pull = p;
   table.laneFloor.ay = PLUNGER_REST_Y + p;
   table.laneFloor.by = PLUNGER_REST_Y + p;
+  // 拉桿往回推時把彈珠一起頂上來，否則頂板一下子升過彈珠，彈珠會掉到頂板下面
+  const b = table.ball;
+  const restY = PLUNGER_REST_Y + p - BALL_R - 0.5;
+  if (b && b.inLane && b.y > restY && b.y < restY + PLUNGER_MAX_PULL + BALL_R * 2) {
+    b.y = restY;
+    b.vy = Math.min(b.vy, 0);
+  }
 }
 
 /** 彈珠是否靜止停在拉桿上 */

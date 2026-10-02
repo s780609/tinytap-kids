@@ -6,6 +6,7 @@ import { useSettings } from "@/lib/settings/SettingsContext";
 import {
   BALL_R,
   LANE_X,
+  PLUNGER_MAX_PULL,
   PLUNGER_REST_Y,
   TABLE_H,
   TABLE_W,
@@ -26,9 +27,13 @@ const BALL_SAVE_SECONDS = 8;
 // 以手機為主：上下只留必要的空間，檯面盡量放大
 const HUD_TOP = 48;
 const CONTROLS_H = 64;
-/** 手指往下拖多少，拉桿就多拉幾倍（手機上檯面縮小，拖一小段就要拉到底） */
-const PULL_SENSITIVITY = 1.6;
 const KNOB_R = 20;
+/** 放大版拉桿視窗：把手大小與可以往下拉的距離（px） */
+const BIG_KNOB = 64;
+const BIG_TRAVEL = 120;
+/** 擋板按鈕的最大 / 最小尺寸（px）；實際大小跟著檯面縮放，才不會兩顆疊在一起 */
+const FLIPPER_BTN_MAX = 72;
+const FLIPPER_BTN_MIN = 48;
 
 interface View {
   w: number;
@@ -103,6 +108,11 @@ export default function PinballGame() {
   const [gameOver, setGameOver] = useState(false);
   const [pressed, setPressed] = useState({ left: false, right: false });
   const [banner, setBanner] = useState<string | null>(null);
+  /** 放大版拉桿視窗是否開著，以及目前拉了多少（0～1） */
+  const [plungerOpen, setPlungerOpen] = useState(false);
+  const [pullRatio, setPullRatio] = useState(0);
+  const leftBtnRef = useRef<HTMLDivElement>(null);
+  const rightBtnRef = useRef<HTMLDivElement>(null);
 
   const tableRef = useRef<Table | null>(null);
   const viewRef = useRef<View | null>(null);
@@ -114,10 +124,9 @@ export default function PinballGame() {
   const ballsRef = useRef(TOTAL_BALLS);
   const overRef = useRef(false);
   /** 拉桿拖曳狀態：哪一根手指在拉、起點在哪 */
-  const pullRef = useRef<{ pointerId: number | null; startY: number; startPull: number }>({
+  const pullRef = useRef<{ pointerId: number | null; startY: number }>({
     pointerId: null,
     startY: 0,
-    startPull: 0,
   });
   const keyPullRef = useRef(false);
   const readyRef = useRef(false);
@@ -161,7 +170,10 @@ export default function PinballGame() {
   const release = useCallback(() => {
     const table = tableRef.current;
     if (!table) return;
-    if (releasePlunger(table) > 0) audioManager.whoosh();
+    if (releasePlunger(table) > 0) {
+      audioManager.whoosh();
+      setPlungerOpen(false);
+    }
   }, []);
 
   /** 建立新檯面並重置所有 ref 狀態（不動 React state） */
@@ -182,6 +194,7 @@ export default function PinballGame() {
     setScore(0);
     setBallsLeft(TOTAL_BALLS);
     setGameOver(false);
+    setPlungerOpen(false);
   }, [initTable]);
 
   // ---------- 靜態底圖（星空、檯面、霓虹牆）只在尺寸改變時重畫 ----------
@@ -315,6 +328,21 @@ export default function PinballGame() {
     };
     viewRef.current = view;
     staticRef.current = buildStatic(view, table);
+
+    // 擋板按鈕對齊各自擋板的正下方
+    const size = Math.max(
+      FLIPPER_BTN_MIN,
+      Math.min(FLIPPER_BTN_MAX, (table.flippers.right.px - table.flippers.left.px) * 0.64 * scale - 6)
+    );
+    const place = (el: HTMLDivElement | null, f: Flipper) => {
+      if (!el) return;
+      const midX = f.px + (Math.cos(f.restAngle) * f.length) / 2;
+      el.style.left = `${view.ox + midX * scale}px`;
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+    };
+    place(leftBtnRef.current, table.flippers.left);
+    place(rightBtnRef.current, table.flippers.right);
   }, [buildStatic]);
 
   // ---------- 主迴圈 ----------
@@ -687,21 +715,19 @@ export default function PinballGame() {
         ctx.arc(px, knobY, KNOB_R, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        // 提示：彈珠就緒且還沒拉時，把手上有往下的箭頭，旁邊有一隻往下比的手
+        // 提示：彈珠就緒時，把手外有一圈跳動的光環，旁邊有一隻手指示「點這裡」
         if (readyRef.current && !pulling) {
-          const bob = Math.sin(time * 6) * 4;
-          ctx.fillStyle = "#FFFFFF";
+          const pulse = (Math.sin(time * 6) + 1) / 2;
+          ctx.strokeStyle = `rgba(255,234,0,${0.9 - pulse * 0.6})`;
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.moveTo(px, knobY + 9 + bob * 0.5);
-          ctx.lineTo(px - 9, knobY - 5 + bob * 0.5);
-          ctx.lineTo(px + 9, knobY - 5 + bob * 0.5);
-          ctx.closePath();
-          ctx.fill();
-          ctx.font = "40px serif";
+          ctx.arc(px, knobY, KNOB_R + 4 + pulse * 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.font = "34px serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillStyle = "#000";
-          ctx.fillText("👇", 300, 540 + bob * 2.5);
+          ctx.fillText("👉", px - 46 + pulse * 6, knobY - 4);
         }
       }
 
@@ -979,10 +1005,10 @@ export default function PinballGame() {
     };
   }, [handleResize, initTable, release, showBanner, syncInput]);
 
-  // ---------- 觸控：擋板只有按在 ◀ ▶ 按鈕上才會動；彈珠等發射時右半邊畫面可以往下拖拉桿 ----------
+  // ---------- 觸控：擋板只有按在 ◀ ▶ 按鈕上才會動；彈珠等發射時點右半邊畫面會跳出放大版拉桿 ----------
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.closest("button")) return;
+    if (target.closest("button") || target.closest("[data-plunger]")) return;
     audioManager.init();
     const flipper = target.closest<HTMLElement>("[data-flipper]")?.dataset.flipper;
     if (flipper === "left" || flipper === "right") {
@@ -990,53 +1016,60 @@ export default function PinballGame() {
       syncInput();
       return;
     }
-    const table = tableRef.current;
-    // 彈珠在拉桿上等發射時，整個右半邊畫面都可以往下拖來拉拉桿（不用對準小小的把手）
-    if (
-      table &&
-      e.clientX >= window.innerWidth / 2 &&
-      pullRef.current.pointerId === null &&
-      isBallOnPlunger(table)
-    ) {
-      pullRef.current = {
-        pointerId: e.pointerId,
-        startY: e.clientY,
-        startPull: table.plunger.pull,
-      };
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        // 指標已失效時略過，拖曳狀態已記錄
-      }
+    // 拉桿視窗開著時點外面就關掉
+    if (plungerOpen) {
+      setPlungerOpen(false);
+      return;
     }
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const pull = pullRef.current;
-    const view = viewRef.current;
     const table = tableRef.current;
-    if (pull.pointerId !== e.pointerId || !view || !table) return;
-    setPlungerPull(
-      table,
-      pull.startPull + ((e.clientY - pull.startY) / view.scale) * PULL_SENSITIVITY
-    );
+    if (table && e.clientX >= window.innerWidth / 2 && isBallOnPlunger(table)) {
+      setPullRatio(0);
+      setPlungerOpen(true);
+    }
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (pullRef.current.pointerId === e.pointerId) {
-      pullRef.current.pointerId = null;
-      release();
-      return;
-    }
     if (pointersRef.current.delete(e.pointerId)) syncInput();
   };
+
+  // ---------- 放大版拉桿：在視窗裡任何地方按住往下拖，放開就發射 ----------
+  const onPlungerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pullRef.current.pointerId !== null) return;
+    pullRef.current = { pointerId: e.pointerId, startY: e.clientY };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // 指標已失效時略過，拖曳狀態已記錄
+    }
+  };
+
+  const onPlungerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pull = pullRef.current;
+    const table = tableRef.current;
+    if (pull.pointerId !== e.pointerId || !table) return;
+    const ratio = Math.max(0, Math.min(1, (e.clientY - pull.startY) / BIG_TRAVEL));
+    setPlungerPull(table, ratio * PLUNGER_MAX_PULL);
+    setPullRatio(ratio);
+  };
+
+  const onPlungerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pullRef.current.pointerId !== e.pointerId) return;
+    pullRef.current.pointerId = null;
+    setPullRatio(0);
+    // 有拉到才會發射並關掉視窗；幾乎沒拉就放開，視窗留著可以再拉一次
+    release();
+  };
+
+  const flipperBtnClass = (on: boolean) =>
+    `fixed bottom-1 z-20 -translate-x-1/2 rounded-full flex items-center justify-center text-3xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
+      on ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
+    }`;
 
   return (
     <div
       className="fixed inset-0 bg-[#05071A] select-none"
       style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onPointerLeave={onPointerUp}
@@ -1072,25 +1105,52 @@ export default function PinballGame() {
         </div>
       )}
 
-      {/* 底部控制：左右擋板按鈕（只有按在按鈕上才會動）；右下角留給拉桿把手 */}
-      <div className="fixed bottom-1 left-0 right-0 z-20 flex justify-center items-end gap-6 pr-14 pointer-events-none">
-        <div
-          data-flipper="left"
-          className={`w-[72px] h-[72px] pointer-events-auto rounded-full flex items-center justify-center text-4xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
-            pressed.left ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
-          }`}
-        >
-          ◀
-        </div>
-        <div
-          data-flipper="right"
-          className={`w-[72px] h-[72px] pointer-events-auto rounded-full flex items-center justify-center text-4xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
-            pressed.right ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
-          }`}
-        >
-          ▶
-        </div>
+      {/* 擋板按鈕：只有按在按鈕上才會動；位置和大小在 handleResize 裡對齊上方的擋板 */}
+      <div ref={leftBtnRef} data-flipper="left" className={flipperBtnClass(pressed.left)}>
+        ◀
       </div>
+      <div ref={rightBtnRef} data-flipper="right" className={flipperBtnClass(pressed.right)}>
+        ▶
+      </div>
+
+      {/* 放大版拉桿視窗 */}
+      {plungerOpen && !gameOver && (
+        <div
+          data-plunger
+          className="fixed right-2 bottom-24 z-30 w-[104px] rounded-3xl bg-black/85 border-2 border-[#00E5FF] shadow-[0_0_24px_rgba(0,229,255,0.6)] p-2 animate-bounce-in"
+          style={{ touchAction: "none" }}
+          onPointerDown={onPlungerDown}
+          onPointerMove={onPlungerMove}
+          onPointerUp={onPlungerUp}
+          onPointerCancel={onPlungerUp}
+        >
+          <div className="text-center text-sm font-black text-[#FFEA00]">👇 往下拉</div>
+          <div
+            className="relative mx-auto mt-1 w-[72px] rounded-full bg-white/10 border border-white/20"
+            style={{ height: BIG_KNOB + BIG_TRAVEL + 8 }}
+          >
+            {/* 彈簧：拉越深拉得越長 */}
+            <div
+              className="absolute left-1/2 -translate-x-1/2 top-1 w-4"
+              style={{
+                height: pullRatio * BIG_TRAVEL + BIG_KNOB / 2,
+                background:
+                  "repeating-linear-gradient(to bottom, #CFD8DC 0 3px, transparent 3px 8px)",
+              }}
+            />
+            <div
+              className="absolute left-[3px] rounded-full border-2 border-white/70"
+              style={{
+                top: 3 + pullRatio * BIG_TRAVEL,
+                width: BIG_KNOB,
+                height: BIG_KNOB,
+                background: "radial-gradient(circle at 35% 35%, #FFCDD2, #FF5252 55%, #B71C1C)",
+                boxShadow: `0 0 ${12 + pullRatio * 24}px #FF5252`,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 結束畫面 */}
       {gameOver && (
