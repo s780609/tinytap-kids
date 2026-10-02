@@ -23,8 +23,12 @@ import {
 const TOTAL_BALLS = 5;
 /** 進檯面後這段時間內掉球會免費還一顆，避免一發射就沒了 */
 const BALL_SAVE_SECONDS = 8;
-const HUD_TOP = 64;
-const CONTROLS_H = 124;
+// 以手機為主：上下只留必要的空間，檯面盡量放大
+const HUD_TOP = 48;
+const CONTROLS_H = 64;
+/** 手指往下拖多少，拉桿就多拉幾倍（手機上檯面縮小，拖一小段就要拉到底） */
+const PULL_SENSITIVITY = 1.6;
+const KNOB_R = 20;
 
 interface View {
   w: number;
@@ -641,7 +645,7 @@ export default function PinballGame() {
         const px = (LANE_X + 390) / 2;
         const tipY = PLUNGER_REST_Y + visPullRef.current;
         const baseY = TABLE_H - 4;
-        const knobY = tipY + 88;
+        const knobY = tipY + 86;
         // 彈簧（拉越深壓得越扁）
         ctx.strokeStyle = "#CFD8DC";
         ctx.lineWidth = 2.5;
@@ -672,7 +676,7 @@ export default function PinballGame() {
         ctx.fill();
         // 把手
         const pulling = pullRef.current.pointerId !== null || keyPullRef.current;
-        const kg = ctx.createRadialGradient(px - 5, knobY - 5, 2, px, knobY, 17);
+        const kg = ctx.createRadialGradient(px - 5, knobY - 5, 2, px, knobY, KNOB_R);
         kg.addColorStop(0, "#FFCDD2");
         kg.addColorStop(0.5, "#FF5252");
         kg.addColorStop(1, "#B71C1C");
@@ -680,22 +684,24 @@ export default function PinballGame() {
         ctx.shadowBlur = pulling ? 22 : 12;
         ctx.fillStyle = kg;
         ctx.beginPath();
-        ctx.arc(px, knobY, 17, 0, Math.PI * 2);
+        ctx.arc(px, knobY, KNOB_R, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        // 提示：彈珠就緒且還沒拉時，把手下方有跳動的箭頭
+        // 提示：彈珠就緒且還沒拉時，把手上有往下的箭頭，旁邊有一隻往下比的手
         if (readyRef.current && !pulling) {
           const bob = Math.sin(time * 6) * 4;
-          ctx.fillStyle = "#FFEA00";
-          ctx.shadowColor = "#FFEA00";
-          ctx.shadowBlur = 10;
+          ctx.fillStyle = "#FFFFFF";
           ctx.beginPath();
-          ctx.moveTo(px, knobY + 44 + bob);
-          ctx.lineTo(px - 11, knobY + 28 + bob);
-          ctx.lineTo(px + 11, knobY + 28 + bob);
+          ctx.moveTo(px, knobY + 9 + bob * 0.5);
+          ctx.lineTo(px - 9, knobY - 5 + bob * 0.5);
+          ctx.lineTo(px + 9, knobY - 5 + bob * 0.5);
           ctx.closePath();
           ctx.fill();
-          ctx.shadowBlur = 0;
+          ctx.font = "40px serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#000";
+          ctx.fillText("👇", 300, 540 + bob * 2.5);
         }
       }
 
@@ -973,34 +979,36 @@ export default function PinballGame() {
     };
   }, [handleResize, initTable, release, showBanner, syncInput]);
 
-  // ---------- 觸控：拉桿區往下拉放；其餘畫面左半 = 左擋板，右半 = 右擋板 ----------
+  // ---------- 觸控：擋板只有按在 ◀ ▶ 按鈕上才會動；彈珠等發射時右半邊畫面可以往下拖拉桿 ----------
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest("button")) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) return;
     audioManager.init();
-    const view = viewRef.current;
+    const flipper = target.closest<HTMLElement>("[data-flipper]")?.dataset.flipper;
+    if (flipper === "left" || flipper === "right") {
+      pointersRef.current.set(e.pointerId, flipper);
+      syncInput();
+      return;
+    }
     const table = tableRef.current;
-    if (view && table && pullRef.current.pointerId === null) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const tx = (e.clientX - rect.left - view.ox) / view.scale;
-      const ty = (e.clientY - rect.top - view.oy) / view.scale;
-      // 拉桿區：發射軌道下半段到把手下方
-      if (tx > LANE_X - 25 && tx < TABLE_W + 25 && ty > PLUNGER_REST_Y - 40) {
-        pullRef.current = {
-          pointerId: e.pointerId,
-          startY: e.clientY,
-          startPull: table.plunger.pull,
-        };
-        try {
-          e.currentTarget.setPointerCapture(e.pointerId);
-        } catch {
-          // 指標已失效時略過，拖曳狀態已記錄
-        }
-        return;
+    // 彈珠在拉桿上等發射時，整個右半邊畫面都可以往下拖來拉拉桿（不用對準小小的把手）
+    if (
+      table &&
+      e.clientX >= window.innerWidth / 2 &&
+      pullRef.current.pointerId === null &&
+      isBallOnPlunger(table)
+    ) {
+      pullRef.current = {
+        pointerId: e.pointerId,
+        startY: e.clientY,
+        startPull: table.plunger.pull,
+      };
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // 指標已失效時略過，拖曳狀態已記錄
       }
     }
-    const side = e.clientX < window.innerWidth / 2 ? "left" : "right";
-    pointersRef.current.set(e.pointerId, side);
-    syncInput();
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1008,7 +1016,10 @@ export default function PinballGame() {
     const view = viewRef.current;
     const table = tableRef.current;
     if (pull.pointerId !== e.pointerId || !view || !table) return;
-    setPlungerPull(table, pull.startPull + (e.clientY - pull.startY) / view.scale);
+    setPlungerPull(
+      table,
+      pull.startPull + ((e.clientY - pull.startY) / view.scale) * PULL_SENSITIVITY
+    );
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1061,17 +1072,19 @@ export default function PinballGame() {
         </div>
       )}
 
-      {/* 底部控制：左右擋板提示（整個左右半邊畫面都可以按）；右下角留給拉桿把手 */}
-      <div className="fixed bottom-3 left-0 right-0 z-20 flex justify-center items-end gap-8 pr-12 pointer-events-none">
+      {/* 底部控制：左右擋板按鈕（只有按在按鈕上才會動）；右下角留給拉桿把手 */}
+      <div className="fixed bottom-1 left-0 right-0 z-20 flex justify-center items-end gap-6 pr-14 pointer-events-none">
         <div
-          className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
+          data-flipper="left"
+          className={`w-[72px] h-[72px] pointer-events-auto rounded-full flex items-center justify-center text-4xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
             pressed.left ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
           }`}
         >
           ◀
         </div>
         <div
-          className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
+          data-flipper="right"
+          className={`w-[72px] h-[72px] pointer-events-auto rounded-full flex items-center justify-center text-4xl font-black text-white border-4 border-[#FF80AB] transition-transform ${
             pressed.right ? "bg-[#FF4081] scale-90 shadow-[0_0_24px_#FF4081]" : "bg-[#FF4081]/50"
           }`}
         >
