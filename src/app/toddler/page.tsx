@@ -69,7 +69,15 @@ export default function ToddlerModePage() {
           onClick={() => router.push("/toddler/pinball")}
         >
           <span className="text-4xl mb-1">🪐</span>
-          <span className="text-white">打彈珠</span>
+          <span className="text-white">太空彈珠台</span>
+        </BigButton>
+
+        <BigButton
+          color="#F9A825"
+          onClick={() => router.push("/toddler/night-market")}
+        >
+          <span className="text-4xl mb-1">🏮</span>
+          <span className="text-white">夜市彈珠台</span>
         </BigButton>
       </div>
     </div>

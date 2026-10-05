@@ -468,7 +468,7 @@ function updateFlipper(f: Flipper, pressed: boolean, h: number): void {
  * 圓（彈珠）對線段的碰撞。extraR 為線段本身的半徑（擋板是膠囊形）。
  * surfaceVel 回傳接觸點的表面速度（擋板轉動時用）。
  */
-function collideSegment(
+export function collideSegment(
   b: Ball,
   ax: number,
   ay: number,
