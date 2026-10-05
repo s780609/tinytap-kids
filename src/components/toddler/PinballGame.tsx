@@ -161,6 +161,8 @@ export default function PinballGame() {
     }
     const prev = inputRef.current;
     if (prev.left !== left || prev.right !== right) {
+      // 擋板剛被按下（不是放開）時發出聲音
+      if ((left && !prev.left) || (right && !prev.right)) audioManager.pop();
       inputRef.current = { left, right };
       setPressed({ left, right });
     }
