@@ -29,6 +29,11 @@ export const PLUNGER_REST_Y = 630;
 export const PLUNGER_MAX_PULL = 55;
 export const PLUNGER_MIN_SPEED = 700;
 export const PLUNGER_MAX_SPEED = 1300;
+/** 投珠口：在發射軌道正上方，投進去的彈珠自己掉到拉桿上 */
+export const DROP_X = (LANE_X + 390) / 2;
+export const DROP_Y = 185;
+/** 拖著彈珠放開時，離投珠口這麼近就算投進去（小孩手指不準，放寬一點） */
+const DROP_HIT_R = 55;
 /** 拉不到這個比例就放開，只會彈回去不發射 */
 const PLUNGER_MIN_RATIO = 0.05;
 /** 發射速度的亂數幅度（±2%）：物理是決定性的，不加的話每次拉到底都進同一格 */
@@ -203,6 +208,19 @@ export function resetBall(table: NightMarketTable): void {
     vy: 0,
     inLane: true,
   };
+}
+
+/** 放開的位置（檯面座標）是否在投珠口附近 */
+export function isNearDropHole(x: number, y: number): boolean {
+  return Math.hypot(x - DROP_X, y - DROP_Y) <= DROP_HIT_R;
+}
+
+/** 把彈珠投進投珠口，之後靠重力掉到拉桿上。檯面上已經有彈珠時不能投，回傳 false */
+export function dropBall(table: NightMarketTable): boolean {
+  if (table.ball) return false;
+  table.rest.t = 0;
+  table.ball = { x: DROP_X, y: DROP_Y, vx: 0, vy: 0, inLane: true };
+  return true;
 }
 
 /** 彈珠停在拉桿上時才能發射；拉桿彈回原位並把彈珠打出去。成功回傳 true */

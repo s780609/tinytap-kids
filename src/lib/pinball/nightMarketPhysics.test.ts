@@ -16,7 +16,11 @@ import {
   SLOT_W,
   TABLE_H,
   TABLE_W,
+  DROP_X,
+  DROP_Y,
   createTable,
+  dropBall,
+  isNearDropHole,
   isBallOnPlunger,
   launchBall,
   plungerTipY,
@@ -444,4 +448,38 @@ test("每次都拉到底，落點也會分散在不同格子", () => {
     slots.add(slot.slot);
   }
   assert.ok(slots.size >= 3, `只落在 ${slots.size} 個格子`);
+});
+
+test("dropBall 把彈珠投進投珠口，彈珠自己掉到拉桿上停好，之後可以發射", () => {
+  const table = createTable();
+  assert.equal(table.ball, null, "一開始檯面上沒有彈珠");
+  assert.ok(dropBall(table));
+  const ball = table.ball!;
+  assert.ok(ball.inLane);
+  assert.equal(ball.x, DROP_X);
+  assert.equal(ball.y, DROP_Y);
+  assert.ok(ball.x > LANE_X && ball.x < 390, "投珠口在發射軌道正上方");
+  assert.ok(DROP_Y < PLUNGER_REST_Y - 200, "要看得到彈珠一路掉下來");
+
+  const events = run(table, 3);
+  assert.equal(events.filter(isSlot).length, 0, "掉下來的過程不算落格");
+  assert.ok(isBallOnPlunger(table), `應停在拉桿上 y=${table.ball!.y}`);
+
+  pull(table, 1);
+  assert.ok(releasePlunger(table) > 0, "停好之後可以發射");
+});
+
+test("檯面上已經有彈珠時不能再投", () => {
+  const table = createTable();
+  resetBall(table);
+  const before = { ...table.ball! };
+  assert.equal(dropBall(table), false);
+  assert.deepEqual(table.ball, before);
+});
+
+test("isNearDropHole：放在投珠口附近才算投進去", () => {
+  assert.ok(isNearDropHole(DROP_X, DROP_Y));
+  assert.ok(isNearDropHole(DROP_X - 30, DROP_Y + 20), "小孩手指不準，附近也算");
+  assert.equal(isNearDropHole(200, 400), false);
+  assert.equal(isNearDropHole(DROP_X, PLUNGER_REST_Y), false);
 });

@@ -5,6 +5,8 @@ import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
 import {
   BALL_R,
+  DROP_X,
+  DROP_Y,
   FIELD_LEFT,
   FLOOR_Y,
   LANE_X,
@@ -18,9 +20,10 @@ import {
   TABLE_H,
   TABLE_W,
   createTable,
+  dropBall,
+  isNearDropHole,
   isBallOnPlunger,
   releasePlunger,
-  resetBall,
   setPlungerPull,
   stepTable,
   type NightMarketTable,
@@ -33,6 +36,13 @@ const CONTROLS_H = 64;
 const KNOB_R = 20;
 /** 手指往下拖這麼多 px 就算拉到底 */
 const PULL_TRAVEL = 120;
+/** 珠盤（檯面座標）：在機台正下方、拉桿把手左邊，裝著還沒投的彈珠 */
+const TRAY_X = FIELD_LEFT + 6;
+const TRAY_Y = TABLE_H + 14;
+const TRAY_W = 300;
+const TRAY_H = 34;
+/** 珠盤的觸控範圍往外多抓一點，小手比較好拿 */
+const TRAY_HIT_PAD = 24;
 
 /** 最高分的格子：分數牌用紅字、進球時播比較熱鬧的音效 */
 const TOP_SCORE = Math.max(...SLOT_SCORES);
@@ -96,6 +106,12 @@ export default function NightMarketPinballGame() {
     pointerId: null,
     startY: 0,
   });
+  /** 從珠盤拿起來、正被手指拖著的彈珠（檯面座標） */
+  const dragRef = useRef<{ pointerId: number | null; x: number; y: number }>({
+    pointerId: null,
+    x: 0,
+    y: 0,
+  });
   const keyPullRef = useRef(false);
   const readyRef = useRef(false);
   const visPullRef = useRef(0);
@@ -120,12 +136,12 @@ export default function NightMarketPinballGame() {
 
   /** 建立新檯面並重置所有 ref 狀態（不動 React state） */
   const initTable = useCallback(() => {
-    const table = createTable();
-    resetBall(table);
-    tableRef.current = table;
+    // 檯面上先沒有彈珠，等玩家從珠盤投進投珠口
+    tableRef.current = createTable();
     scoreRef.current = 0;
     ballsRef.current = TOTAL_BALLS;
     pullRef.current.pointerId = null;
+    dragRef.current.pointerId = null;
     popupsRef.current = [];
     flashRef.current.clear();
   }, []);
@@ -358,12 +374,8 @@ export default function NightMarketPinballGame() {
           else audioManager.ding();
           ballsRef.current -= 1;
           setBallsLeft(ballsRef.current);
-          if (ballsRef.current > 0) {
-            serveTimerRef.current = setTimeout(() => {
-              const t = tableRef.current;
-              if (t && !t.ball) resetBall(t);
-            }, 500);
-          } else {
+          // 還有彈珠就等玩家自己再投一顆
+          if (ballsRef.current === 0) {
             // 等最後一顆的分數跳完再結算
             serveTimerRef.current = setTimeout(() => {
               setGameOver(true);
@@ -507,9 +519,71 @@ export default function NightMarketPinballGame() {
         }
       }
 
+      // 投珠口：發射軌道上方的小洞，投進去的彈珠從這裡掉到拉桿上
+      const drag = dragRef.current;
+      const dragging = drag.pointerId !== null;
+      const canThrow = !table.ball && !dragging && ballsRef.current > 0;
+      const aiming = dragging && isNearDropHole(drag.x, drag.y);
+      const pulse = (Math.sin(time * 6) + 1) / 2;
+      ctx.fillStyle = "#4A148C";
+      ctx.beginPath();
+      ctx.arc(DROP_X, DROP_Y, BALL_R + 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = aiming ? "#FFEA00" : "#FFD54F";
+      ctx.lineWidth = aiming ? 4 : 2.5;
+      ctx.stroke();
+      if (canThrow || (dragging && !aiming)) {
+        ctx.strokeStyle = `rgba(255,234,0,${0.9 - pulse * 0.6})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(DROP_X, DROP_Y, BALL_R + 7 + pulse * 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 珠盤與裡面還沒投的彈珠（最右邊那顆是下一顆）
+      const inTray = Math.max(0, ballsRef.current - (table.ball ? 1 : 0) - (dragging ? 1 : 0));
+      const trayY = TRAY_Y + TRAY_H / 2;
+      const trayBallX = (i: number) => TRAY_X + 22 + i * (BALL_R * 2 + 8);
+      ctx.fillStyle = "#6D4C41";
+      ctx.beginPath();
+      ctx.roundRect(TRAY_X, TRAY_Y, TRAY_W, TRAY_H, TRAY_H / 2);
+      ctx.fill();
+      ctx.fillStyle = "#3E2723";
+      ctx.beginPath();
+      ctx.roundRect(TRAY_X + 4, TRAY_Y + 4, TRAY_W - 8, TRAY_H - 8, (TRAY_H - 8) / 2);
+      ctx.fill();
+      for (let i = 0; i < inTray; i++) drawBall(ctx, trayBallX(i), trayY);
+      // 提示：虛線從珠盤指向投珠口，手指按在下一顆彈珠上
+      if (canThrow && inTray > 0) {
+        const sx = trayBallX(inTray - 1);
+        ctx.setLineDash([6, 8]);
+        ctx.lineDashOffset = -time * 30;
+        ctx.strokeStyle = "rgba(255,234,0,0.75)";
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(sx, trayY - BALL_R - 6);
+        ctx.quadraticCurveTo(sx, DROP_Y, DROP_X, DROP_Y + BALL_R + 10);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = "30px serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#000";
+        ctx.fillText("👆", sx + 6, trayY + 16 - pulse * 8);
+      }
+
       // 彈珠：格子裡的和正在跑的
       for (const s of table.settled) drawBall(ctx, s.x, s.y);
       if (table.ball) drawBall(ctx, table.ball.x, table.ball.y);
+      // 手指拖著的彈珠畫大一點，看起來像被拿起來
+      if (dragging) {
+        ctx.save();
+        ctx.translate(drag.x, drag.y);
+        ctx.scale(1.25, 1.25);
+        drawBall(ctx, 0, 0);
+        ctx.restore();
+      }
 
       // 分數跳字
       ctx.textAlign = "center";
@@ -568,13 +642,22 @@ export default function NightMarketPinballGame() {
     };
   }, [handleResize, initTable, release]);
 
-  // ---------- 觸控：彈珠等發射時，在畫面任何地方按住往下拖就是拉拉桿，放開發射 ----------
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest("button")) return;
-    audioManager.init();
-    const table = tableRef.current;
-    if (!table || pullRef.current.pointerId !== null || !isBallOnPlunger(table)) return;
-    pullRef.current = { pointerId: e.pointerId, startY: e.clientY };
+  // ---------- 觸控 ----------
+  // 檯面上沒有彈珠時：從珠盤拿一顆，拖到投珠口放開就投進去
+  // 彈珠等發射時：在畫面任何地方按住往下拖就是拉拉桿，放開發射
+
+  /** 螢幕座標轉檯面座標 */
+  const toTable = (e: React.PointerEvent): { x: number; y: number } | null => {
+    const view = viewRef.current;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!view || !rect) return null;
+    return {
+      x: (e.clientX - rect.left - view.ox) / view.scale,
+      y: (e.clientY - rect.top - view.oy) / view.scale,
+    };
+  };
+
+  const capture = (e: React.PointerEvent<HTMLDivElement>) => {
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -582,7 +665,38 @@ export default function NightMarketPinballGame() {
     }
   };
 
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    audioManager.init();
+    const table = tableRef.current;
+    if (!table || pullRef.current.pointerId !== null || dragRef.current.pointerId !== null) return;
+    if (isBallOnPlunger(table)) {
+      pullRef.current = { pointerId: e.pointerId, startY: e.clientY };
+      capture(e);
+      return;
+    }
+    const p = toTable(e);
+    if (table.ball || ballsRef.current <= 0 || !p) return;
+    const inTray =
+      p.x >= TRAY_X - TRAY_HIT_PAD &&
+      p.x <= TRAY_X + TRAY_W + TRAY_HIT_PAD &&
+      p.y >= TRAY_Y - TRAY_HIT_PAD &&
+      p.y <= TRAY_Y + TRAY_H + TRAY_HIT_PAD;
+    if (!inTray) return;
+    dragRef.current = { pointerId: e.pointerId, x: p.x, y: p.y };
+    capture(e);
+  };
+
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (drag.pointerId === e.pointerId) {
+      const p = toTable(e);
+      if (p) {
+        drag.x = p.x;
+        drag.y = p.y;
+      }
+      return;
+    }
     const pull = pullRef.current;
     const table = tableRef.current;
     if (pull.pointerId !== e.pointerId || !table) return;
@@ -591,6 +705,14 @@ export default function NightMarketPinballGame() {
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (drag.pointerId === e.pointerId) {
+      drag.pointerId = null;
+      // 放在投珠口附近才投進去；放在別的地方彈珠就回到珠盤
+      const table = tableRef.current;
+      if (table && isNearDropHole(drag.x, drag.y) && dropBall(table)) audioManager.pop();
+      return;
+    }
     if (pullRef.current.pointerId !== e.pointerId) return;
     pullRef.current.pointerId = null;
     // 有拉到才會發射；幾乎沒拉就放開，拉桿彈回原位可以再拉一次
