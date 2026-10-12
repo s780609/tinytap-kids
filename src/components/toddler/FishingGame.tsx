@@ -21,7 +21,7 @@ import {
   type Swimmer,
 } from "@/lib/fishing/fishingLogic";
 
-type Phase = "idle" | "aiming" | "casting" | "waiting" | "hooked" | "landing";
+type Phase = "idle" | "casting" | "waiting" | "hooked" | "landing";
 
 interface Rect {
   x: number;
@@ -60,7 +60,7 @@ export default function FishingGame() {
   const [reelAngle, setReelAngle] = useState(0);
   const [bucket, setBucket] = useState<CatchKind[]>([]);
   const [showBucket, setShowBucket] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>("點一下池塘就能丟竿 🎣");
 
   const phaseRef = useRef<Phase>("idle");
   const geomRef = useRef<Geometry | null>(null);
@@ -85,6 +85,11 @@ export default function FishingGame() {
     setMessage(text);
     if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
     msgTimerRef.current = setTimeout(() => setMessage(null), ms);
+  }, []);
+
+  // 開場提示，幾秒後自動消失
+  useEffect(() => {
+    msgTimerRef.current = setTimeout(() => setMessage(null), 3000);
   }, []);
 
   useEffect(() => {
@@ -118,18 +123,11 @@ export default function FishingGame() {
     }
   }, []);
 
-  // ---------- 操作：丟竿（先瞄準，再點池塘） ----------
-  const startAiming = useCallback(() => {
-    if (phaseRef.current !== "idle") return;
-    setPhaseBoth("aiming");
-    showMessage("點一下池塘，鉤子就丟到那裡 👆", 3000);
-    audioManager.pop();
-  }, [setPhaseBoth, showMessage]);
-
+  // ---------- 操作：丟竿（直接點池塘） ----------
   const castTo = useCallback(
     (nx: number, ny: number) => {
       const g = geomRef.current;
-      if (!g || phaseRef.current !== "aiming") return;
+      if (!g || phaseRef.current !== "idle") return;
       const hook = hookRef.current;
       hook.fromX = (g.rodTip.x - g.pond.x) / g.pond.w;
       hook.fromY = (g.rodTip.y - g.pond.y) / g.pond.h;
@@ -148,11 +146,13 @@ export default function FishingGame() {
 
   const onCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const g = geomRef.current;
-    if (!g || phaseRef.current !== "aiming") return;
+    if (!g || phaseRef.current !== "idle") return;
     const rect = e.currentTarget.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
-    // 點在池塘外就丟到最近的池邊
+    // 只有點在池塘裡才丟竿
+    const { pond } = g;
+    if (px < pond.x || px > pond.x + pond.w || py < pond.y || py > pond.y + pond.h) return;
     castTo((px - g.pond.x) / g.pond.w, (py - g.pond.y) / g.pond.h);
   };
 
@@ -416,12 +416,6 @@ export default function FishingGame() {
         drawEmoji(ctx, type.emoji, x, y, type.size, s.dir === 1 && !type.isJunk);
       }
 
-      // 瞄準中：池塘閃爍提示
-      const p = phaseRef.current;
-      if (p === "aiming") {
-        ctx.fillStyle = `rgba(255,255,255,${0.08 + Math.sin(time * 5) * 0.06})`;
-        ctx.fillRect(pond.x, pond.y, pond.w, pond.h);
-      }
       ctx.restore();
 
       // 荷葉
@@ -432,6 +426,7 @@ export default function FishingGame() {
       ctx.fill();
 
       // 釣竿
+      const p = phaseRef.current;
       ctx.strokeStyle = "#8D6E63";
       ctx.lineWidth = 7;
       ctx.lineCap = "round";
@@ -449,7 +444,7 @@ export default function FishingGame() {
       // 釣線與鉤子
       let hx: number;
       let hy: number;
-      if (p === "idle" || p === "aiming") {
+      if (p === "idle") {
         hx = g.rodTip.x;
         hy = g.rodTip.y + 26;
       } else if (p === "casting") {
@@ -544,18 +539,6 @@ export default function FishingGame() {
   }, [handleResize, setPhaseBoth, showMessage]);
 
   // ---------- UI ----------
-  const buttonLabel =
-    phase === "idle"
-      ? { emoji: "🎣", text: "丟竿" }
-      : phase === "aiming"
-        ? { emoji: "👆", text: "點池塘" }
-        : phase === "hooked"
-          ? { emoji: "🔄", text: "畫圈圈" }
-          : phase === "landing"
-            ? { emoji: "🪣", text: "放進桶" }
-            : { emoji: "⏳", text: "等等…" };
-  const buttonActive = phase === "idle";
-
   // 水桶清單：依種類彙整
   const bucketSummary = CATCH_TYPES.map((c) => ({
     type: c,
@@ -567,7 +550,7 @@ export default function FishingGame() {
       <div ref={wrapperRef} className="absolute inset-0">
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 w-full h-full ${phase === "aiming" ? "cursor-crosshair" : ""}`}
+          className={`absolute inset-0 w-full h-full ${phase === "idle" ? "cursor-crosshair" : ""}`}
           onPointerDown={onCanvasPointerDown}
         />
       </div>
@@ -611,7 +594,7 @@ export default function FishingGame() {
 
       {/* 捲線輪：上鉤時出現，手指畫圈 */}
       {phase === "hooked" && (
-        <div className="fixed right-4 bottom-40 z-20 flex flex-col items-center animate-bounce-in">
+        <div className="fixed right-4 bottom-6 z-20 flex flex-col items-center animate-bounce-in">
           <button
             ref={reelRef}
             type="button"
@@ -645,25 +628,6 @@ export default function FishingGame() {
           </div>
         </div>
       )}
-
-      {/* 丟竿按鈕 */}
-      <div className="fixed right-4 bottom-6 z-20">
-        <button
-          type="button"
-          onPointerDown={startAiming}
-          disabled={!buttonActive}
-          className={`w-28 h-28 rounded-full text-white shadow-xl flex flex-col items-center justify-center select-none transition-transform ${
-            buttonActive
-              ? "bg-[#4FC3F7] active:scale-90 active:bg-[#039BE5]"
-              : phase === "aiming"
-                ? "bg-[#FFB74D] animate-pulse"
-                : "bg-gray-300"
-          }`}
-        >
-          <span className="text-4xl leading-none">{buttonLabel.emoji}</span>
-          <span className="text-lg font-black mt-1">{buttonLabel.text}</span>
-        </button>
-      </div>
 
       {/* 水桶清單 */}
       {showBucket && (
