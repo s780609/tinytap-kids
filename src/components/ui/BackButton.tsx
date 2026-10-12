@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface BackButtonProps {
   className?: string;
@@ -8,10 +8,13 @@ interface BackButtonProps {
 
 export default function BackButton({ className = "" }: BackButtonProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  // 回到上一層路徑：/toddler/fishing → /toddler，/toddler → /
+  const parentPath = pathname.replace(/\/[^/]+\/?$/, "") || "/";
 
   return (
     <button
-      onClick={() => router.push("/")}
+      onClick={() => router.push(parentPath)}
       className={`
         fixed top-4 left-4 z-40
         w-14 h-14 rounded-full
@@ -21,7 +24,7 @@ export default function BackButton({ className = "" }: BackButtonProps) {
         select-none cursor-pointer
         ${className}
       `}
-      aria-label="返回主畫面"
+      aria-label="返回上一頁"
     >
       <svg
         width="24"
