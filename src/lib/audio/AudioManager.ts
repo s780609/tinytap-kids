@@ -9,7 +9,13 @@ import {
   playBubble,
   playWrong,
   playSand,
+  playTick,
+  scheduleHat,
+  scheduleKick,
+  scheduleTone,
+  scheduleWoodblock,
 } from "./synth";
+import type { ClockAnchor } from "@/lib/rhythm/playfield";
 
 class AudioManager {
   private ctx: AudioContext | null = null;
@@ -121,6 +127,71 @@ class AudioManager {
   sand() {
     this.ensureCtx();
     if (this.ctx && this.gainNode) playSand(this.ctx, this.gainNode);
+  }
+
+  // ---------- 節奏遊戲：AudioContext 是唯一時鐘 ----------
+
+  /** 在使用者手勢裡呼叫：確保 AudioContext 存在並已啟動 */
+  async resume(): Promise<AudioContext | null> {
+    if (!this.ctx) this.init();
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    if (ctx.state !== "running") {
+      try {
+        await ctx.resume();
+      } catch {
+        // 瀏覽器拒絕時保持原狀
+      }
+    }
+    return ctx;
+  }
+
+  suspend() {
+    if (this.ctx?.state === "running") this.ctx.suspend().catch(() => {});
+  }
+
+  get context(): AudioContext | null {
+    return this.ctx;
+  }
+
+  /** 建立接到主音量的子匯流排，結束時 disconnect 就能一次靜音已排程的音 */
+  createMusicBus(): GainNode | null {
+    if (!this.ctx || !this.gainNode) this.init();
+    if (!this.ctx || !this.gainNode) return null;
+    const bus = this.ctx.createGain();
+    bus.connect(this.gainNode);
+    return bus;
+  }
+
+  /** AudioContext 時間與 performance.now() 的對照（含輸出延遲） */
+  clockAnchor(): ClockAnchor | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const ts = typeof ctx.getOutputTimestamp === "function" ? ctx.getOutputTimestamp() : null;
+    if (ts && ts.performanceTime && ts.contextTime !== undefined) {
+      return { contextTime: ts.contextTime, performanceTime: ts.performanceTime };
+    }
+    const latency = ctx.outputLatency ?? ctx.baseLatency ?? 0;
+    return { contextTime: ctx.currentTime - latency, performanceTime: performance.now() };
+  }
+
+  scheduleNote(bus: AudioNode, freq: number, when: number, dur: number) {
+    if (this.ctx) scheduleTone(this.ctx, bus, freq, when, dur);
+  }
+
+  scheduleBeat(bus: AudioNode, when: number, kind: "kick" | "hat") {
+    if (!this.ctx) return;
+    if (kind === "kick") scheduleKick(this.ctx, bus, when);
+    else scheduleHat(this.ctx, bus, when);
+  }
+
+  scheduleCount(bus: AudioNode, when: number, high: boolean) {
+    if (this.ctx) scheduleWoodblock(this.ctx, bus, when, high);
+  }
+
+  /** 打中時的短促 tick（不帶音高） */
+  tick() {
+    if (this.ctx?.state === "running" && this.gainNode) playTick(this.ctx, this.gainNode);
   }
 }
 
