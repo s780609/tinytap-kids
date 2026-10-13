@@ -39,6 +39,22 @@ export default function BabyModePage() {
           <span className="text-4xl mb-1">🐮</span>
           <span className="text-white">動物鍵盤</span>
         </BigButton>
+
+        <BigButton
+          color="#66BB6A"
+          onClick={() => router.push("/baby/peekaboo")}
+        >
+          <span className="text-4xl mb-1">👀</span>
+          <span className="text-white">躲貓貓</span>
+        </BigButton>
+
+        <BigButton
+          color="#29B6F6"
+          onClick={() => router.push("/baby/wipe")}
+        >
+          <span className="text-4xl mb-1">🫧</span>
+          <span className="text-white">擦窗戶</span>
+        </BigButton>
       </div>
     </div>
   );
