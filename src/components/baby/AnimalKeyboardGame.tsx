@@ -72,7 +72,7 @@ export default function AnimalKeyboardGame() {
       </div>
 
       {/* 鍵盤本體 */}
-      <div className="mx-2 mb-4 rounded-[2rem] bg-[#8D6E63] p-3 shadow-2xl h-[50%] flex">
+      <div className="mx-2 mb-1 rounded-[2rem] bg-[#8D6E63] p-3 shadow-2xl h-[50%] flex">
         <div className="flex-1 flex" {...glissando}>
           {ANIMAL_KEYS.map((k) => {
             const down = lit.has(k.midi);
@@ -102,6 +102,9 @@ export default function AnimalKeyboardGame() {
           })}
         </div>
       </div>
+
+      {/* ElevenLabs 免費方案要求註明來源 */}
+      <p className="pb-2 text-center text-[10px] text-[#90A4AE]">部分音效：elevenlabs.io</p>
     </div>
   );
 }

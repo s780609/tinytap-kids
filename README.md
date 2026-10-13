@@ -121,13 +121,13 @@ npm start
 
 ## 音效來源
 
-`public/sounds/animals/` 的動物叫聲皆為 CC0 或公有領域錄音，已剪成 1～2 秒、統一響度後轉成 mp3，使用時不需標註：
+`public/sounds/animals/` 的動物叫聲已剪成 1～2 秒、統一響度後轉成 mp3。牛、獅子、貓來自 ElevenLabs 音效庫，免費方案需註明來源 elevenlabs.io（動物鍵盤畫面底部已標註）；其餘為 CC0 或公有領域錄音，不需標註：
 
 | 檔案 | 來源 | 授權 |
 |---|---|---|
 | `elephant.mp3` | [Elephant voice - trumpeting.ogg](https://commons.wikimedia.org/wiki/File:Elephant_voice_-_trumpeting.ogg)（Wikimedia Commons） | CC0 |
-| `cow.mp3` | [Cow in Vezo.ogg](https://commons.wikimedia.org/wiki/File:Cow_in_Vezo.ogg)（Wikimedia Commons） | CC0 |
-| `lion.mp3` | [Lion raring-sound1TamilNadu178.ogg](https://commons.wikimedia.org/wiki/File:Lion_raring-sound1TamilNadu178.ogg)（Wikimedia Commons） | 公有領域 |
+| `cow.mp3` | 「平静牛叫悦耳」（[ElevenLabs 奶牛音效](https://elevenlabs.io/zh/sound-effects/cow)） | 免版稅，免費方案需註明 elevenlabs.io |
+| `lion.mp3` | 「雄狮威严咆哮」（[ElevenLabs 獅子音效](https://elevenlabs.io/zh/sound-effects/lion)） | 免版稅，免費方案需註明 elevenlabs.io |
 | `dog.mp3` | [Barking of a Spitz #0682](https://bigsoundbank.com/barking-of-a-spitz-s0682.html)（BigSoundBank） | CC0 |
-| `cat.mp3` | [Maullido de gata hembra joven.ogg](https://commons.wikimedia.org/wiki/File:Maullido_de_gata_hembra_joven.ogg)（Wikimedia Commons） | CC0 |
+| `cat.mp3` | 「顽皮欢快猫叫」（[ElevenLabs Meow Meow 音效](https://elevenlabs.io/zh/sound-effects/meow-meow)） | 免版稅，免費方案需註明 elevenlabs.io |
 | `duck.mp3` | [Ducks #0276](https://bigsoundbank.com/ducks-s0276.html)（BigSoundBank） | CC0 |
