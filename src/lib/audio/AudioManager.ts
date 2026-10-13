@@ -75,7 +75,8 @@ class AudioManager {
     await Promise.allSettled(files.map((f) => this.preload(f)));
   }
 
-  async playFile(path: string) {
+  /** rate：播放速度，同時改變音高（動物鍵盤用） */
+  async playFile(path: string, rate = 1) {
     this.ensureCtx();
     if (!this.audioCache.has(path)) {
       await this.preload(path);
@@ -84,6 +85,7 @@ class AudioManager {
     if (!buffer || !this.ctx || !this.gainNode) return;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
+    source.playbackRate.value = rate;
     source.connect(this.gainNode);
     source.start();
   }

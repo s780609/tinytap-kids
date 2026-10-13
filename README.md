@@ -16,6 +16,8 @@
 ### 寶寶模式（適合 1 歲）
 
 - **氣球點點樂** — 點擊畫面任何地方爆出彩色氣球 + 粒子噴射 + 音效回饋，點空白處也有小火花
+- **寶寶鋼琴** — 兒童玩具鋼琴：Do 到高音 Do 八個彩虹白鍵加五個黑鍵，按下去鍵會沉下去、飄出彩色音符；手指按著滑過琴鍵可以刷鍵，支援多指。上方有自動彈兒歌按鈕（小星星、小蜜蜂、倫敦鐵橋），彈奏時對應的鍵會亮起來，再按一次停止
+- **動物鍵盤** — 六個動物鍵由低到高是大象、牛、獅子、狗狗、貓咪、鴨子，按下去動物叫聲會變成那個鍵的音高（Do Re Mi Fa Sol La），剛按到的動物會在舞台上跳出來
 
 ### 幼兒模式（適合 3 歲）
 
@@ -47,7 +49,10 @@
 ```
 src/
 ├── app/                    # Next.js App Router 頁面
-│   ├── baby/               # 寶寶模式
+│   ├── baby/               # 寶寶模式（選單）
+│   │   ├── balloons/       # 氣球點點樂
+│   │   ├── piano/          # 寶寶鋼琴
+│   │   └── animals/        # 動物鍵盤
 │   ├── toddler/            # 幼兒模式
 │   │   ├── drawing/        # 畫畫板
 │   │   ├── memory/         # 記憶翻牌
@@ -62,7 +67,7 @@ src/
 │   ├── sw.ts               # Service Worker
 │   └── manifest.ts         # PWA Manifest
 ├── components/
-│   ├── baby/               # 氣球遊戲 + 粒子 Canvas
+│   ├── baby/               # 氣球遊戲 + 粒子 Canvas / 寶寶鋼琴 / 動物鍵盤
 │   ├── toddler/            # 畫畫板 / 記憶翻牌 / 數數 / 賽車 / 玩沙沙 / 釣魚 / 太空彈珠台 / 夜市彈珠台 / 動物樂團
 │   ├── svg/                # SVG 圖形 (shapes/animals/fruits)
 │   └── ui/                 # BigButton / BackButton / ParentSettings / TimerOverlay / RegisterSW
@@ -72,6 +77,7 @@ src/
 │   ├── sand/               # 格子沙物理（純函式，含 node --test 測試）
 │   ├── fishing/            # 釣魚遊戲邏輯（魚種、游動、收線圈數，含測試）
 │   ├── pinball/            # 彈珠台物理（牆、彈射器、擋板、發射軌道、落靶、蟲洞、坡道、任務，含測試）；夜市彈珠台物理（釘子、格子、落定，含測試）
+│   ├── piano/              # 寶寶鋼琴與動物鍵盤的鍵盤配置、自動彈奏時間表（含測試）
 │   ├── rhythm/             # 動物樂團節奏遊戲邏輯（旋律解析、兒歌、譜面、判定計分、畫面換算，含測試）
 │   ├── templates/          # 描繪圖線模板 (小馬/兔子/迷你豬)
 │   ├── settings/           # SettingsContext + localStorage
