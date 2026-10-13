@@ -2,6 +2,7 @@
  * Generate placeholder audio files for TinyTap Kids.
  * Uses simple sine wave tones to create recognizable audio cues.
  * These can be replaced with real recordings later.
+ * 動物叫聲（public/sounds/animals/）已換成真實的 CC0 錄音，不再由這支腳本產生，來源見 README。
  *
  * Run: node scripts/generate-sounds.mjs
  */
@@ -88,83 +89,8 @@ function saveWav(path, samples) {
 }
 
 // Ensure directories
-mkdirSync("public/sounds/animals", { recursive: true });
 mkdirSync("public/sounds/voices", { recursive: true });
 mkdirSync("public/sounds/feedback", { recursive: true });
-
-// === Animal sounds (simplified tonal representations) ===
-
-// Cat - high pitched meow pattern
-saveWav(
-  "public/sounds/animals/cat.mp3",
-  concat(
-    tone(800, 0.15),
-    tone(600, 0.1),
-    silence(0.05),
-    tone(900, 0.2),
-    tone(700, 0.15)
-  )
-);
-
-// Dog - bark pattern (short sharp tones)
-saveWav(
-  "public/sounds/animals/dog.mp3",
-  concat(
-    tone(300, 0.1, 22050, 0.7),
-    silence(0.05),
-    tone(350, 0.1, 22050, 0.7),
-    silence(0.1),
-    tone(300, 0.12, 22050, 0.6)
-  )
-);
-
-// Cow - low moo
-saveWav(
-  "public/sounds/animals/cow.mp3",
-  concat(tone(150, 0.4, 22050, 0.6), tone(130, 0.5, 22050, 0.5))
-);
-
-// Duck - quack pattern
-saveWav(
-  "public/sounds/animals/duck.mp3",
-  concat(
-    tone(500, 0.08, 22050, 0.6),
-    noise(0.04),
-    silence(0.08),
-    tone(520, 0.08, 22050, 0.6),
-    noise(0.04)
-  )
-);
-
-// Lion - low roar
-saveWav(
-  "public/sounds/animals/lion.mp3",
-  concat(
-    tone(100, 0.2, 22050, 0.7),
-    tone(120, 0.3, 22050, 0.8),
-    tone(90, 0.4, 22050, 0.6),
-    noise(0.2, 22050, 0.2)
-  )
-);
-
-// Elephant - trumpet sound (rising tone)
-saveWav(
-  "public/sounds/animals/elephant.mp3",
-  (() => {
-    const sr = 22050;
-    const dur = 0.8;
-    const n = Math.floor(sr * dur);
-    const samples = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      const t = i / sr;
-      const freq = 200 + (t / dur) * 400; // rising from 200 to 600
-      const envelope =
-        Math.sin((t / dur) * Math.PI) * 0.6; // bell envelope
-      samples[i] = Math.sin(2 * Math.PI * freq * t) * envelope;
-    }
-    return samples;
-  })()
-);
 
 // === Voice clips (musical chime patterns as placeholders) ===
 
