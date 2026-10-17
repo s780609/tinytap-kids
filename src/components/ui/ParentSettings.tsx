@@ -111,6 +111,32 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
             </div>
           )}
         </div>
+
+        {/* Fishing tap reel */}
+        <div className="mb-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-semibold text-gray-600">
+              釣魚：點點捲線輪
+            </label>
+            <button
+              onClick={() =>
+                updateSettings({ fishingTapReel: !settings.fishingTapReel })
+              }
+              className={`w-14 h-8 rounded-full transition-colors ${
+                settings.fishingTapReel ? "bg-[#FF69B4]" : "bg-gray-300"
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full bg-white shadow transition-transform mx-1 ${
+                  settings.fishingTapReel ? "translate-x-6" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            還不會畫圈的小小孩，打開後連續點捲線輪也能把魚釣上來
+          </p>
+        </div>
       </div>
     </div>
   );

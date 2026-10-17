@@ -90,6 +90,28 @@ class AudioManager {
     source.start();
   }
 
+  /**
+   * 用裝置內建的語音唸出中文（釣到魚時說名字）。
+   * 裝置沒有中文語音就不唸，避免用英文語音念出怪聲音。
+   */
+  speak(text: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
+    const voices = synth.getVoices();
+    const zh =
+      voices.find((v) => v.lang === "zh-TW") ??
+      voices.find((v) => v.lang.startsWith("zh"));
+    if (voices.length > 0 && !zh) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = zh?.lang ?? "zh-TW";
+    if (zh) u.voice = zh;
+    u.rate = 0.9;
+    u.pitch = 1.2;
+    u.volume = this.volume;
+    synth.speak(u);
+  }
+
   // Synth sounds
   pop() {
     this.ensureCtx();

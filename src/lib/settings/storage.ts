@@ -3,6 +3,8 @@ export interface AppSettings {
   defaultMode: "ask" | "baby" | "toddler";
   timerEnabled: boolean;
   timerMinutes: number;
+  /** 釣魚遊戲：點捲線輪也能收線（不會畫圈的小小孩用） */
+  fishingTapReel: boolean;
 }
 
 const STORAGE_KEY = "tinytap-settings";
@@ -12,6 +14,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultMode: "ask",
   timerEnabled: false,
   timerMinutes: 15,
+  fishingTapReel: false,
 };
 
 export function loadSettings(): AppSettings {

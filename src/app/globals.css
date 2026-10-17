@@ -233,3 +233,76 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* 釣魚：水族箱裡的魚左右游（emoji 預設朝左，往右游時翻面） */
+@keyframes aquarium-swim {
+  0% {
+    left: 4%;
+    transform: scaleX(-1);
+  }
+  49.99% {
+    left: 82%;
+    transform: scaleX(-1);
+  }
+  50% {
+    left: 82%;
+    transform: scaleX(1);
+  }
+  100% {
+    left: 4%;
+    transform: scaleX(1);
+  }
+}
+
+.animate-aquarium-swim {
+  animation: aquarium-swim 12s linear infinite;
+}
+
+@keyframes aquarium-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.animate-aquarium-bob {
+  animation: aquarium-bob 3s ease-in-out infinite;
+}
+
+@keyframes aquarium-bubble {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-100vh);
+    opacity: 0;
+  }
+}
+
+.animate-aquarium-bubble {
+  animation: aquarium-bubble 7s linear infinite;
+}
+
+/* 釣魚：被點到跳一下 */
+@keyframes fish-jump {
+  0% {
+    transform: translateY(0) rotate(0);
+  }
+  40% {
+    transform: translateY(-46px) rotate(-20deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+}
+
+.animate-fish-jump {
+  animation: fish-jump 0.6s ease-out;
+}
