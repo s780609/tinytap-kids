@@ -37,10 +37,16 @@ export default function BucketDialog({ bucket, onRelease, onAquarium, onClose }:
                   type.isRare ? "bg-[#FFF8E1]" : "bg-[#E1F5FE]"
                 }`}
               >
-                <span className="text-4xl leading-none">{type.emoji}</span>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="font-black text-gray-700">{type.label}</div>
-                  <div className="text-sm font-bold text-[#FFB74D]">× {count}</div>
+                  {/* 有幾隻就排幾隻，小朋友數得出來 */}
+                  <div className="flex flex-wrap gap-0.5 mt-0.5" aria-label={`${count} ${type.unit}`}>
+                    {Array.from({ length: count }, (_, i) => (
+                      <span key={i} className="text-2xl leading-none">
+                        {type.emoji}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <button
                   type="button"
