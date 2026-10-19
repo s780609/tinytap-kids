@@ -9,12 +9,27 @@ interface NesPadProps {
   onFire: (down: boolean) => void;
 }
 
-const ARROWS: { dir: Dir; area: string; label: string; path: string }[] = [
-  { dir: 0, area: "1 / 2 / 2 / 3", label: "上", path: "M12 6l6 9H6z" },
-  { dir: 1, area: "2 / 3 / 3 / 4", label: "右", path: "M18 12l-9 6V6z" },
-  { dir: 2, area: "3 / 2 / 4 / 3", label: "下", path: "M12 18l-6-9h12z" },
-  { dir: 3, area: "2 / 1 / 3 / 2", label: "左", path: "M6 12l9-6v12z" },
+/** col / row：在 3×3 格裡的位置（0 起算） */
+const ARROWS: { dir: Dir; col: number; row: number; label: string; path: string }[] = [
+  { dir: 0, col: 1, row: 0, label: "上", path: "M12 6l6 9H6z" },
+  { dir: 1, col: 2, row: 1, label: "右", path: "M18 12l-9 6V6z" },
+  { dir: 2, col: 1, row: 2, label: "下", path: "M12 18l-6-9h12z" },
+  { dir: 3, col: 0, row: 1, label: "左", path: "M6 12l9-6v12z" },
 ];
+
+/**
+ * 十字鍵每一格都用絕對定位、由 --pad-size 直接算出位置和大小，不用 CSS grid：
+ * iOS Safari 會把 SVG 的預設寬度（300px）算進 grid 欄寬，把十字鍵撐爆。
+ */
+const CELL = "calc(var(--pad-size) * 0.88 / 3)";
+const cellPos = (n: number) => `calc(var(--pad-size) * 0.06 + var(--pad-size) * 0.88 / 3 * ${n})`;
+const cellStyle = (col: number, row: number): React.CSSProperties => ({
+  position: "absolute",
+  left: cellPos(col),
+  top: cellPos(row),
+  width: CELL,
+  height: CELL,
+});
 
 /**
  * 紅白機手把：左邊十字鍵（手指按住可滑動換方向）、右邊發射鈕（多指各自追蹤）。
@@ -88,14 +103,10 @@ export default function NesPad({ onDir, onFire }: NesPadProps) {
         <div
           role="group"
           aria-label="方向鍵"
-          className="relative grid rounded-full bg-black/20"
+          className="relative shrink-0 rounded-full bg-black/20"
           style={{
             width: "var(--pad-size)",
             height: "var(--pad-size)",
-            // minmax(0, 1fr)：格子不會被內容撐大，三欄三列永遠等分
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gridTemplateRows: "repeat(3, minmax(0, 1fr))",
-            padding: "calc(var(--pad-size) * 0.06)",
             touchAction: "none",
           }}
           onPointerDown={onPadDown}
@@ -104,17 +115,16 @@ export default function NesPad({ onDir, onFire }: NesPadProps) {
           onPointerCancel={onPadUp}
           onLostPointerCapture={onPadUp}
         >
-          <div className="bg-[#222]" style={{ gridArea: "2 / 2 / 3 / 3" }} />
+          <div className="bg-[#222]" style={cellStyle(1, 1)} />
           {ARROWS.map((a) => (
             <div
               key={a.dir}
               aria-label={a.label}
-              className={`flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-[#222] shadow-[inset_0_-3px_0_rgba(0,0,0,0.5)] ${
+              className={`flex items-center justify-center overflow-hidden bg-[#222] shadow-[inset_0_-3px_0_rgba(0,0,0,0.5)] ${
                 dir === a.dir ? "brightness-200" : ""
               } ${a.dir === 0 ? "rounded-t-md" : a.dir === 2 ? "rounded-b-md" : a.dir === 1 ? "rounded-r-md" : "rounded-l-md"}`}
-              style={{ gridArea: a.area }}
+              style={cellStyle(a.col, a.row)}
             >
-              {/* 用固定尺寸：百分比寬高的 SVG 在 iOS Safari 會以 300px 當最小寬度，把十字鍵撐開 */}
               <svg
                 viewBox="0 0 24 24"
                 fill={dir === a.dir ? "#FFE082" : "#777"}
