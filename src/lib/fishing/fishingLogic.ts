@@ -282,6 +282,17 @@ export function isReelDone(accum: number, needed = REEL_TURNS_NEEDED): boolean {
   return Math.abs(accum) >= needed * 360;
 }
 
+/**
+ * 丟回池塘時落水的位置：左右在池塘中段，深度落在這種魚會出沒的範圍
+ * （再限制在 0.2～0.85，不會掉在看不到的池邊）。
+ */
+export function releaseSpot(kind: CatchKind, rand: () => number = Math.random): { x: number; y: number } {
+  const type = getCatchType(kind);
+  const lo = Math.max(0.2, type.minDepth);
+  const hi = Math.max(lo, Math.min(0.85, type.maxDepth));
+  return { x: 0.2 + rand() * 0.6, y: lo + rand() * (hi - lo) };
+}
+
 /** 連點模式：點一下往目前的方向多轉 TAP_REEL_DEGREES 度 */
 export function tapReel(accum: number): number {
   return accum + (accum < 0 ? -TAP_REEL_DEGREES : TAP_REEL_DEGREES);

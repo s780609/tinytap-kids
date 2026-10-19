@@ -21,6 +21,7 @@ import {
   jumpOffset,
   JUMP_DURATION,
   getCatchType,
+  releaseSpot,
   type CatchKind,
   type Swimmer,
 } from "./fishingLogic.ts";
@@ -227,4 +228,15 @@ test("戳一下魚會跳起來再落回原本的深度", () => {
   assert.equal(s.jumpT, undefined);
   assert.equal(jumpOffset(s), 0);
   assert.ok(Math.abs(s.y - s.baseY) < 0.02);
+});
+
+test("releaseSpot：丟回去的落點在池塘中段、深度符合種類", () => {
+  for (const c of CATCH_TYPES.filter((t) => !t.isJunk)) {
+    for (let seed = 1; seed < 20; seed++) {
+      const p = releaseSpot(c.kind, seeded(seed));
+      assert.ok(p.x >= 0.2 && p.x <= 0.8, `${c.kind} x=${p.x}`);
+      assert.ok(p.y >= 0.2 && p.y <= 0.85, `${c.kind} y=${p.y}`);
+      assert.ok(p.y >= c.minDepth - 1e-9 && p.y <= Math.max(c.minDepth, c.maxDepth) + 1e-9, `${c.kind} 深度 ${p.y}`);
+    }
+  }
 });

@@ -357,3 +357,17 @@ body {
 .tank-rise {
   animation: tank-rise 1.4s ease-out both;
 }
+
+/* 釣魚：「收下」按鈕下方的倒數條，跑完自動收下 */
+@keyframes auto-keep {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.animate-auto-keep {
+  animation: auto-keep 6s linear forwards;
+}

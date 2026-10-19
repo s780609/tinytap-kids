@@ -13,6 +13,7 @@ import {
   nearestSwimmer,
   pickRandomKind,
   pokeSwimmer,
+  releaseSpot,
   removeGone,
   spawnFromEdge,
   swimmerAt,
@@ -102,6 +103,23 @@ const POKE_RADIUS = 40;
 const JUNK_SLOTS = 6;
 /** 任務完成後隔多久出下一個（毫秒） */
 const NEXT_TASK_DELAY = 2600;
+/** 釣上來後沒選「收下 / 丟回去」，幾毫秒後自動收下 */
+const AUTO_KEEP_MS = 6000;
+
+/**
+ * 收線後的階段：拉到竿尖 → 掛著讓小朋友選（垃圾跳過）→ 飛進水桶 / 草地，或丟回池塘。
+ * tx、ty 是飛行終點（px）；nx、ny 是丟回池塘的落點（池塘正規化座標）。
+ */
+type LandStage = "toTip" | "show" | "toTarget" | "toPond";
+interface Landing {
+  stage: LandStage;
+  t: number;
+  tx: number;
+  ty: number;
+  nx: number;
+  ny: number;
+}
+const startLanding = (): Landing => ({ stage: "toTip", t: 0, tx: 0, ty: 0, nx: 0, ny: 0 });
 
 /** 撿到的垃圾放在回收桶左邊的草地上 */
 const junkSlot = (w: number, h: number, i: number) => {
@@ -162,6 +180,8 @@ export default function FishingGame() {
   const [task, setTask] = useState<FishingTask | null>(null);
   const [taskBounce, setTaskBounce] = useState(0);
   const [sceneId, setSceneId] = useState<SceneId>("day");
+  /** 釣上來、等小朋友決定要不要留下的那隻 */
+  const [choice, setChoice] = useState<CatchKind | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [message, setMessage] = useState<string | null>("點一下池塘就能丟竿 🎣");
 
@@ -171,7 +191,7 @@ export default function FishingGame() {
   const hookRef = useRef({ x: 0.5, y: 0.5, fromX: 0.5, fromY: 0, t: 0 });
   const attractedRef = useRef<Swimmer | null>(null);
   const hookedRef = useRef<Swimmer | null>(null);
-  const landingRef = useRef({ stage: "toTip" as "toTip" | "toTarget", t: 0, tx: 0, ty: 0 });
+  const landingRef = useRef<Landing>(startLanding());
   const reelDragRef = useRef({ active: false, lastAngle: 0, accum: 0 });
   const turnsRef = useRef(0);
   const reelNeededRef = useRef(REEL_TURNS_NEEDED);
@@ -373,7 +393,7 @@ export default function FishingGame() {
     }
     if (isReelDone(accum, needed)) {
       d.active = false;
-      landingRef.current = { stage: "toTip", t: 0, tx: 0, ty: 0 };
+      landingRef.current = startLanding();
       setPhaseBoth("landing");
       audioManager.ding();
     }
@@ -401,6 +421,35 @@ export default function FishingGame() {
   const onReelUp = () => {
     reelDragRef.current.active = false;
   };
+
+  // ---------- 釣上來後：收下或丟回去 ----------
+  const decide = useCallback((action: "keep" | "throw") => {
+    const g = geomRef.current;
+    const hooked = hookedRef.current;
+    if (!g || !hooked || phaseRef.current !== "landing" || landingRef.current.stage !== "show") return;
+    setChoice(null);
+    audioManager.whoosh();
+    if (action === "keep") {
+      landingRef.current = { stage: "toTarget", t: 0, tx: g.bucket.x, ty: g.bucket.y - 30, nx: 0, ny: 0 };
+    } else {
+      const spot = releaseSpot(hooked.kind);
+      landingRef.current = {
+        stage: "toPond",
+        t: 0,
+        tx: g.pond.x + spot.x * g.pond.w,
+        ty: g.pond.y + spot.y * g.pond.h,
+        nx: spot.x,
+        ny: spot.y,
+      };
+    }
+  }, []);
+
+  // 小朋友沒選的話，過一陣子自動收下，遊戲不會卡住
+  useEffect(() => {
+    if (!choice) return;
+    const id = setTimeout(() => decide("keep"), AUTO_KEEP_MS);
+    return () => clearTimeout(id);
+  }, [choice, decide]);
 
   // ---------- 水桶：放生 ----------
   const releaseFish = (kind: CatchKind) => {
@@ -489,17 +538,18 @@ export default function FishingGame() {
       }, 800 + Math.random() * 1700);
     };
 
-    /** 釣到東西：放進水桶 / 草地，更新圖鑑和任務，挑一句最重要的話說 */
-    const handleCatch = (type: CatchType, g: Geometry) => {
+    /**
+     * 釣到東西：更新圖鑑和任務，挑一句最重要的話說。
+     * 魚在竿尖掛著讓小朋友選的時候就算釣到（丟回去也算），垃圾在落到草地時算。
+     */
+    const announceCatch = (type: CatchType, g: Geometry) => {
       let msg: string;
       let say: string;
       if (type.isJunk) {
-        updateJunkPile([...junkPileRef.current, { id: junkIdRef.current++, kind: type.kind }]);
         msg = `撿到${type.label}！拖到回收桶 ♻️`;
         say = `撿到${type.label}`;
         audioManager.bubble();
       } else {
-        setBucket((prev) => [...prev, type.kind]);
         msg = `釣到${type.label}了！${type.emoji}`;
         say = `是${type.label}！`;
         audioManager.success();
@@ -564,7 +614,38 @@ export default function FishingGame() {
         swimmersRef.current = swimmersRef.current.filter((s) => s.id !== caught.id);
         // 補一隻隨機種類，從池邊游進來（任務要的魚比較容易出現）
         swimmersRef.current.push(spawnFromEdge(pickRandomKind(Math.random, taskFavor(taskRef.current))));
-        handleCatch(getCatchType(caught.kind), g);
+        const type = getCatchType(caught.kind);
+        if (type.isJunk) {
+          updateJunkPile([...junkPileRef.current, { id: junkIdRef.current++, kind: type.kind }]);
+          announceCatch(type, g);
+        } else {
+          setBucket((prev) => [...prev, type.kind]);
+          audioManager.pop();
+          showMessage(`${type.emoji} 放進水桶囉`, 1400);
+        }
+      }
+      turnsRef.current = 0;
+      setTurns(0);
+      setPhaseBoth("idle");
+    };
+
+    /** 丟回池塘：同一隻魚落水後繼續游，不補新的 */
+    const finishThrow = () => {
+      const s = hookedRef.current;
+      const l = landingRef.current;
+      hookedRef.current = null;
+      attractedRef.current = null;
+      if (s) {
+        const type = getCatchType(s.kind);
+        s.x = l.nx;
+        s.y = s.baseY = s.targetY = l.ny;
+        s.dir = Math.random() < 0.5 ? 1 : -1;
+        s.leaving = false;
+        s.jumpT = undefined;
+        effectsRef.current.push(...splash(l.tx, l.ty, 1.2), ...bubbles(l.tx, l.ty, 6));
+        audioManager.bubble();
+        showMessage(`掰掰${type.label}！游回去囉 👋`, 2000);
+        audioManager.speak(`掰掰，${type.label}`);
       }
       turnsRef.current = 0;
       setTurns(0);
@@ -660,6 +741,9 @@ export default function FishingGame() {
         bendTarget = strong ? 0.85 + Math.sin(time * 9) * 0.15 : 0.4 + Math.sin(time * 7) * 0.1;
       } else if (p === "landing" && landingRef.current.stage === "toTip") {
         bendTarget = strong ? 0.7 : 0.45;
+      } else if (p === "landing" && landingRef.current.stage === "show") {
+        // 魚掛在竿尖，釣竿被重量壓彎一點
+        bendTarget = strong ? 0.45 : 0.25;
       }
       bendRef.current += (bendTarget - bendRef.current) * Math.min(1, dt * 8);
       const puffTarget = hookedType?.reaction === "puff" ? 1 : 0;
@@ -704,12 +788,16 @@ export default function FishingGame() {
           if (l.t >= 1) {
             hook.x = tipX;
             hook.y = tipY;
-            // 魚飛進水桶，垃圾飛到回收桶旁邊的草地
-            const isJunk = hookedType?.isJunk ?? false;
-            const target = isJunk
-              ? junkSlot(g.w, g.h, junkPileRef.current.length)
-              : { x: g.bucket.x, y: g.bucket.y - 30 };
-            landingRef.current = { stage: "toTarget", t: 0, tx: target.x, ty: target.y };
+            if (hookedType?.isJunk) {
+              // 垃圾直接飛到回收桶旁邊的草地
+              const target = junkSlot(g.w, g.h, junkPileRef.current.length);
+              landingRef.current = { stage: "toTarget", t: 0, tx: target.x, ty: target.y, nx: 0, ny: 0 };
+            } else if (hookedType) {
+              // 魚掛在竿尖，讓小朋友選要收下還是丟回去
+              landingRef.current = { ...l, stage: "show", t: 0 };
+              announceCatch(hookedType, g);
+              setChoice(hookedType.kind);
+            }
           } else {
             const ease = 1 - Math.pow(1 - l.t, 2);
             hook.x = hook.x + (tipX - hook.x) * ease * 0.25;
@@ -719,9 +807,12 @@ export default function FishingGame() {
             hookedRef.current.x = hook.x;
             hookedRef.current.y = hook.y + 0.01;
           }
-        } else {
+        } else if (l.stage === "toTarget" || l.stage === "toPond") {
           l.t = Math.min(1, l.t + dt / FLY_DURATION);
-          if (l.t >= 1) finishCatch(g);
+          if (l.t >= 1) {
+            if (l.stage === "toPond") finishThrow();
+            else finishCatch(g);
+          }
         }
       }
     };
@@ -820,8 +911,8 @@ export default function FishingGame() {
         const type = getCatchType(hooked.kind);
         const size = type.size * (1 + puffRef.current * 0.7);
         const l = landingRef.current;
-        if (p === "landing" && l.stage === "toTarget") {
-          // 沿弧線飛向水桶（垃圾飛到回收桶旁）
+        if (p === "landing" && (l.stage === "toTarget" || l.stage === "toPond")) {
+          // 沿弧線飛向水桶（垃圾飛到回收桶旁），或飛回池塘
           const t = l.t;
           const ease = 1 - Math.pow(1 - t, 3);
           const fx = g.rodTip.x;
@@ -830,7 +921,15 @@ export default function FishingGame() {
           const cy = Math.min(fy, l.ty) - 120;
           const x = (1 - ease) * (1 - ease) * fx + 2 * (1 - ease) * ease * cx + ease * ease * l.tx;
           const y = (1 - ease) * (1 - ease) * fy + 2 * (1 - ease) * ease * cy + ease * ease * l.ty;
-          drawEmoji(ctx, type.emoji, x, y, size * (1 - ease * 0.4), false, type.glow);
+          const shrink = l.stage === "toPond" ? 0.15 : 0.4;
+          drawEmoji(ctx, type.emoji, x, y, size * (1 - ease * shrink), false, type.glow);
+        } else if (p === "landing" && l.stage === "show") {
+          // 掛在竿尖扭來扭去，放大一點讓小朋友看清楚
+          ctx.save();
+          ctx.translate(hx, hy + 20);
+          ctx.rotate(Math.sin(time * 6) * 0.25);
+          drawEmoji(ctx, type.emoji, 0, 0, size * 1.3, false, type.glow);
+          ctx.restore();
         } else if (p === "landing") {
           drawEmoji(ctx, type.emoji, hx, hy + 14, size, false, type.glow);
         } else {
@@ -1073,6 +1172,37 @@ export default function FishingGame() {
               點點也可以 👆
             </span>
           )}
+        </div>
+      )}
+
+      {/* 釣上來了：收下或丟回去（沒選的話自動收下） */}
+      {choice && (
+        <div className="fixed left-0 right-0 bottom-[184px] z-30 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto bg-white/90 backdrop-blur rounded-3xl shadow-xl px-4 py-3 flex flex-col items-center animate-bounce-in">
+            <div className="text-base font-black text-[#0288D1] mb-2">
+              {getCatchType(choice).emoji} 要留下{getCatchType(choice).label}嗎？
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => decide("keep")}
+                className="relative overflow-hidden w-28 h-16 rounded-2xl bg-[#81C784] text-white font-black text-lg shadow active:scale-95 transition-transform select-none"
+              >
+                🪣 收下
+                <span
+                  className="absolute left-0 bottom-0 h-1.5 w-full bg-white/70 origin-left animate-auto-keep"
+                  style={{ animationDuration: `${AUTO_KEEP_MS}ms` }}
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => decide("throw")}
+                className="w-28 h-16 rounded-2xl bg-[#4FC3F7] text-white font-black text-lg shadow active:scale-95 transition-transform select-none"
+              >
+                🌊 丟回去
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
