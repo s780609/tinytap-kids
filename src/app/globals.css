@@ -306,3 +306,54 @@ body {
 .animate-fish-jump {
   animation: fish-jump 0.6s ease-out;
 }
+
+/* 坦克大戰：直向「HUD / 地圖 / 十字鍵＋發射」，橫向「十字鍵 | HUD＋地圖 | 發射」 */
+.tank-layout {
+  --pad-size: min(150px, 40vw);
+  --fire-size: min(96px, 26vw);
+  display: grid;
+  grid-template-areas:
+    "hud hud"
+    "map map"
+    "pad fire";
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto 1fr;
+}
+
+.tank-hud {
+  height: 76px;
+  padding-top: 12px;
+}
+
+@media (orientation: landscape) {
+  .tank-layout {
+    --pad-size: min(150px, 22vw, 60vh);
+    --fire-size: min(100px, 15vw, 40vh);
+    grid-template-areas:
+      "pad hud fire"
+      "pad map fire";
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .tank-hud {
+    height: 52px;
+    padding-top: 6px;
+  }
+}
+
+/* 遊戲結束字樣由下往上升 */
+@keyframes tank-rise {
+  from {
+    transform: translateY(40vh);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.tank-rise {
+  animation: tank-rise 1.4s ease-out both;
+}

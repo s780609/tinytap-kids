@@ -15,6 +15,7 @@ import {
   scheduleTone,
   scheduleWoodblock,
 } from "./synth";
+import { playChipJingle, playChipSfx, type ChipJingle, type ChipSfx } from "./chiptune";
 import type { ClockAnchor } from "@/lib/rhythm/playfield";
 
 class AudioManager {
@@ -216,6 +217,16 @@ class AudioManager {
   /** 打中時的短促 tick（不帶音高） */
   tick() {
     if (this.ctx?.state === "running" && this.gainNode) playTick(this.ctx, this.gainNode);
+  }
+
+  // ---------- 懷舊遊戲：紅白機風格音效 ----------
+
+  chip(kind: ChipSfx) {
+    if (this.ctx?.state === "running" && this.gainNode) playChipSfx(this.ctx, this.gainNode, kind);
+  }
+
+  chipJingle(kind: ChipJingle) {
+    if (this.ctx?.state === "running" && this.gainNode) playChipJingle(this.ctx, this.gainNode, kind);
   }
 }
 

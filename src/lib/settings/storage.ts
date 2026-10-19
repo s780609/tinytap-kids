@@ -1,6 +1,8 @@
+export const DEFAULT_MODES = ["ask", "baby", "toddler", "retro"] as const;
+
 export interface AppSettings {
   volume: number;
-  defaultMode: "ask" | "baby" | "toddler";
+  defaultMode: (typeof DEFAULT_MODES)[number];
   timerEnabled: boolean;
   timerMinutes: number;
   /** 釣魚遊戲：點捲線輪也能收線（不會畫圈的小小孩用） */
@@ -22,7 +24,10 @@ export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const merged: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    // 讀到不認識的模式（例如舊版或手動改壞）就回到每次詢問
+    if (!(DEFAULT_MODES as readonly string[]).includes(merged.defaultMode)) merged.defaultMode = "ask";
+    return merged;
   } catch {
     return DEFAULT_SETTINGS;
   }

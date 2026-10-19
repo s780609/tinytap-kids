@@ -7,6 +7,7 @@ import VolumeSlider from "@/components/ui/VolumeSlider";
 import ParentSettings from "@/components/ui/ParentSettings";
 import { useSettings } from "@/lib/settings/SettingsContext";
 import { audioManager } from "@/lib/audio/AudioManager";
+import type { AppSettings } from "@/lib/settings/storage";
 
 export default function HomePage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function HomePage() {
     }
   }, [settings.defaultMode, router]);
 
-  const handleModeSelect = (mode: "baby" | "toddler") => {
+  const handleModeSelect = (mode: Exclude<AppSettings["defaultMode"], "ask">) => {
     audioManager.init();
     audioManager.setVolume(settings.volume);
     audioManager.preloadAll();
@@ -40,7 +41,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 gap-6 relative overflow-hidden">
+    <div className="flex flex-col items-center justify-center-safe h-screen p-6 gap-6 relative overflow-x-hidden overflow-y-auto">
       {/* Background decorations */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[10%] left-[5%] w-16 h-16 rounded-full bg-[#FFD54F]/20 animate-bubble-float" />
@@ -79,6 +80,12 @@ export default function HomePage() {
           <span className="text-5xl mb-2">⭐</span>
           <span>幼兒模式</span>
           <span className="text-base font-normal opacity-80">適合 3 歲</span>
+        </BigButton>
+
+        <BigButton color="#5C6BC0" onClick={() => handleModeSelect("retro")}>
+          <span className="text-5xl mb-2">🕹️</span>
+          <span>懷舊遊戲</span>
+          <span className="text-base font-normal opacity-80">大小孩／大人</span>
         </BigButton>
       </div>
 

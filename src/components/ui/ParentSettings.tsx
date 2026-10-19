@@ -2,6 +2,14 @@
 
 import { useSettings } from "@/lib/settings/SettingsContext";
 import { audioManager } from "@/lib/audio/AudioManager";
+import { DEFAULT_MODES, type AppSettings } from "@/lib/settings/storage";
+
+const MODE_LABELS: Record<AppSettings["defaultMode"], string> = {
+  ask: "每次詢問",
+  baby: "寶寶模式（1歲）",
+  toddler: "幼兒模式（3歲）",
+  retro: "懷舊遊戲（大小孩／大人）",
+};
 
 interface ParentSettingsProps {
   onClose: () => void;
@@ -29,7 +37,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
             預設模式
           </label>
           <div className="flex flex-col gap-2">
-            {(["ask", "baby", "toddler"] as const).map((mode) => (
+            {DEFAULT_MODES.map((mode) => (
               <button
                 key={mode}
                 onClick={() => updateSettings({ defaultMode: mode })}
@@ -39,11 +47,7 @@ export default function ParentSettings({ onClose }: ParentSettingsProps) {
                     : "bg-gray-100 text-gray-600"
                 }`}
               >
-                {mode === "ask"
-                  ? "每次詢問"
-                  : mode === "baby"
-                    ? "寶寶模式（1歲）"
-                    : "幼兒模式（3歲）"}
+                {MODE_LABELS[mode]}
               </button>
             ))}
           </div>
