@@ -316,7 +316,7 @@ body {
     "hud hud"
     "map map"
     "pad fire";
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
 }
 
@@ -332,7 +332,7 @@ body {
     grid-template-areas:
       "pad hud fire"
       "pad map fire";
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     grid-template-rows: auto 1fr;
   }
 

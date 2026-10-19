@@ -92,8 +92,9 @@ export default function NesPad({ onDir, onFire }: NesPadProps) {
           style={{
             width: "var(--pad-size)",
             height: "var(--pad-size)",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gridTemplateRows: "1fr 1fr 1fr",
+            // minmax(0, 1fr)：格子不會被內容撐大，三欄三列永遠等分
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gridTemplateRows: "repeat(3, minmax(0, 1fr))",
             padding: "calc(var(--pad-size) * 0.06)",
             touchAction: "none",
           }}
@@ -108,12 +109,18 @@ export default function NesPad({ onDir, onFire }: NesPadProps) {
             <div
               key={a.dir}
               aria-label={a.label}
-              className={`flex items-center justify-center bg-[#222] shadow-[inset_0_-3px_0_rgba(0,0,0,0.5)] ${
+              className={`flex min-h-0 min-w-0 items-center justify-center overflow-hidden bg-[#222] shadow-[inset_0_-3px_0_rgba(0,0,0,0.5)] ${
                 dir === a.dir ? "brightness-200" : ""
               } ${a.dir === 0 ? "rounded-t-md" : a.dir === 2 ? "rounded-b-md" : a.dir === 1 ? "rounded-r-md" : "rounded-l-md"}`}
               style={{ gridArea: a.area }}
             >
-              <svg width="60%" height="60%" viewBox="0 0 24 24" fill={dir === a.dir ? "#FFE082" : "#777"}>
+              {/* 用固定尺寸：百分比寬高的 SVG 在 iOS Safari 會以 300px 當最小寬度，把十字鍵撐開 */}
+              <svg
+                viewBox="0 0 24 24"
+                fill={dir === a.dir ? "#FFE082" : "#777"}
+                className="block shrink-0"
+                style={{ width: "calc(var(--pad-size) * 0.17)", height: "calc(var(--pad-size) * 0.17)" }}
+              >
                 <path d={a.path} />
               </svg>
             </div>
