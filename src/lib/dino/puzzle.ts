@@ -24,7 +24,8 @@ export const DINOS: Dino[] = [
 
 export const LEVELS = [
   { label: "🐣 4 片", cols: 2, rows: 2 },
-  { label: "🦖 6 片", cols: 3, rows: 2 },
+  { label: "🦕 6 片", cols: 3, rows: 2 },
+  { label: "🦖 8 片", cols: 4, rows: 2 },
 ];
 
 export interface Rect {

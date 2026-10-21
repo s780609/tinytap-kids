@@ -27,10 +27,10 @@ test("六隻恐龍，代號與名字都不重複", () => {
   assert.equal(new Set(DINOS.map((d) => d.name)).size, 6);
 });
 
-test("難度有 4 片與 6 片兩種", () => {
+test("難度有 4 片、6 片與 8 片三種", () => {
   assert.deepEqual(
     LEVELS.map((l) => l.cols * l.rows),
-    [4, 6]
+    [4, 6, 8]
   );
 });
 
@@ -46,6 +46,7 @@ test("pieceRect 切出來的每一片剛好拼滿整張圖、不重疊", () => {
   // 由左到右、由上到下編號
   assert.deepEqual(pieceRect(1, 2, 2), { x: 150, y: 0, w: 150, h: 150 });
   assert.deepEqual(pieceRect(5, 3, 2), { x: 200, y: 150, w: 100, h: 150 });
+  assert.deepEqual(pieceRect(6, 4, 2), { x: 150, y: 150, w: 75, h: 150 });
 });
 
 for (const [label, w, h] of [

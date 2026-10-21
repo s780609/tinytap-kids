@@ -36,7 +36,8 @@ export default function DinoPuzzleGame() {
   const engineRef = useRef<ParticleEngine | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const [level, setLevel] = useState(0);
+  // 預設最難的 8 片
+  const [level, setLevel] = useState(LEVELS.length - 1);
   const [dino, setDino] = useState<number | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
   /** order[托盤位置] = 碎片編號 */
@@ -152,7 +153,7 @@ export default function DinoPuzzleGame() {
       <div className="flex flex-col items-center h-screen overflow-y-auto p-6 pt-20 pb-10 gap-4 select-none">
         <h1 className="text-3xl md:text-4xl font-black text-[#8BC34A] animate-bounce-in">🦖 恐龍拼圖</h1>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap justify-center gap-2">
           {LEVELS.map((lv, i) => (
             <button
               key={lv.label}
@@ -160,7 +161,7 @@ export default function DinoPuzzleGame() {
                 audioManager.pop();
                 setLevel(i);
               }}
-              className={`px-5 py-2 rounded-full text-xl font-bold shadow active:scale-95 transition ${
+              className={`px-4 py-2 rounded-full text-lg font-bold shadow active:scale-95 transition ${
                 level === i ? "bg-[#8BC34A] text-white" : "bg-white text-[#689F38]"
               }`}
             >
