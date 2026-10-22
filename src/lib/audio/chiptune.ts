@@ -12,9 +12,12 @@ export type ChipSfx =
   | "powerAppear"
   | "powerGet"
   | "life"
-  | "pause";
+  | "pause"
+  | "waka1"
+  | "waka2"
+  | "eatGhost";
 
-export type ChipJingle = "stageStart" | "gameOver" | "stageClear";
+export type ChipJingle = "stageStart" | "gameOver" | "stageClear" | "pacStart" | "pacDeath";
 
 const noiseCache = new WeakMap<BaseAudioContext, AudioBuffer>();
 
@@ -133,6 +136,16 @@ export function playChipSfx(ctx: BaseAudioContext, dest: AudioNode, kind: ChipSf
       sq(ctx, dest, f("E6"), t, 0.05, 0.06);
       sq(ctx, dest, f("B6"), t + 0.08, 0.06, 0.06);
       break;
+    // 小精靈吃豆子：上下滑音輪流
+    case "waka1":
+      sq(ctx, dest, 260, t, 0.07, 0.2, "triangle", 520);
+      break;
+    case "waka2":
+      sq(ctx, dest, 520, t, 0.07, 0.2, "triangle", 260);
+      break;
+    case "eatGhost":
+      sq(ctx, dest, 180, t, 0.3, 0.07, "square", 1600);
+      break;
   }
 }
 
@@ -177,6 +190,30 @@ export function playChipJingle(ctx: BaseAudioContext, dest: AudioNode, kind: Chi
       const b = 0.09;
       playSeq(ctx, dest, t, b, [["G5", 1], ["C6", 1], ["E6", 1], ["G6", 2], ["E6", 1], ["G6", 4]], 0.06, "square");
       playSeq(ctx, dest, t, b, [["C3", 3], ["G2", 3], ["C3", 4]], 0.2, "triangle");
+      break;
+    }
+    case "pacStart": {
+      // 約 2.2 秒，小精靈開場的「準備！」
+      const b = 0.08;
+      const lead: Seq = [
+        ["E5", 1], ["G5", 1], ["C6", 2], ["B5", 1], ["G5", 1], ["E5", 2],
+        ["F5", 1], ["A5", 1], ["D6", 2], ["C6", 1], ["A5", 1], ["F5", 2],
+        ["E5", 1], ["G5", 1], ["C6", 1], ["E6", 1], ["D6", 1], ["B5", 1], ["G5", 1], ["B5", 1],
+        ["C6", 4],
+      ];
+      playSeq(ctx, dest, t, b, lead, 0.06, "square");
+      const bass: Seq = [["C3", 4], ["G2", 4], ["F2", 4], ["D3", 4], ["C3", 2], ["E3", 2], ["G2", 4], ["C3", 4]];
+      playSeq(ctx, dest, t, b, bass, 0.2, "triangle");
+      break;
+    }
+    case "pacDeath": {
+      // 一路往下掉的滑音，最後兩聲「啵啵」
+      for (let i = 0; i < 9; i++) {
+        const hz = 900 * Math.pow(0.86, i);
+        sq(ctx, dest, hz, t + 0.75 + i * 0.1, 0.09, 0.06, "square", hz * 0.7);
+      }
+      sq(ctx, dest, f("C5"), t + 1.75, 0.05, 0.07, "square", f("C6"));
+      sq(ctx, dest, f("C5"), t + 1.9, 0.05, 0.07, "square", f("C6"));
       break;
     }
   }

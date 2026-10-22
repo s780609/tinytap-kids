@@ -358,6 +358,39 @@ body {
   animation: tank-rise 1.4s ease-out both;
 }
 
+/* 小精靈：直向「HUD / 地圖 / 十字鍵」，橫向「十字鍵 | HUD＋地圖 | 空白」 */
+.pacman-layout {
+  --pad-size: min(150px, 40vw);
+  display: grid;
+  grid-template-areas:
+    "hud"
+    "map"
+    "pad";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr;
+}
+
+.pacman-hud {
+  height: 76px;
+  padding-top: 12px;
+}
+
+@media (orientation: landscape) {
+  .pacman-layout {
+    --pad-size: min(150px, 22vw, 60vh);
+    grid-template-areas:
+      "pad hud ."
+      "pad map .";
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  .pacman-hud {
+    height: 52px;
+    padding-top: 6px;
+  }
+}
+
 /* 釣魚：「收下」按鈕下方的倒數條，跑完自動收下 */
 @keyframes auto-keep {
   from {

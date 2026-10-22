@@ -23,6 +23,13 @@ export default function RetroModePage() {
           <span className="text-4xl mb-1">🧱</span>
           <span className="text-white">坦克大戰</span>
         </BigButton>
+        <BigButton
+          color="#1A237E"
+          onClick={() => router.push("/retro/pacman")}
+        >
+          <span className="text-4xl mb-1">🟡</span>
+          <span className="text-white">小精靈</span>
+        </BigButton>
       </div>
     </div>
   );

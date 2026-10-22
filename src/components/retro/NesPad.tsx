@@ -6,7 +6,8 @@ import { dirFromPad } from "@/lib/tank/input";
 
 interface NesPadProps {
   onDir: (dir: Dir | null) => void;
-  onFire: (down: boolean) => void;
+  /** 不給就不顯示發射鈕（例如小精靈） */
+  onFire?: (down: boolean) => void;
 }
 
 /** col / row：在 3×3 格裡的位置（0 起算） */
@@ -33,7 +34,7 @@ const cellStyle = (col: number, row: number): React.CSSProperties => ({
 
 /**
  * 紅白機手把：左邊十字鍵（手指按住可滑動換方向）、右邊發射鈕（多指各自追蹤）。
- * 回傳兩個 grid 子元素，分別放在 .tank-layout 的 pad / fire 區。
+ * 回傳兩個 grid 子元素，分別放在 .tank-layout 的 pad / fire 區；沒有 onFire 時只回傳 pad 區。
  */
 export default function NesPad({ onDir, onFire }: NesPadProps) {
   const [dir, setDir] = useState<Dir | null>(null);
@@ -86,14 +87,14 @@ export default function NesPad({ onDir, onFire }: NesPadProps) {
     firePointers.current.add(e.pointerId);
     if (firePointers.current.size === 1) {
       setFiring(true);
-      onFire(true);
+      onFire?.(true);
     }
   };
   const onFireUp = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!firePointers.current.delete(e.pointerId)) return;
     if (firePointers.current.size === 0) {
       setFiring(false);
-      onFire(false);
+      onFire?.(false);
     }
   };
 
@@ -137,28 +138,30 @@ export default function NesPad({ onDir, onFire }: NesPadProps) {
           ))}
         </div>
       </div>
-      <div className="flex items-center justify-center" style={{ gridArea: "fire" }}>
-        <button
-          type="button"
-          aria-label="發射"
-          className={`rounded-full border-4 border-[#3a0d0d] font-black text-white shadow-[0_6px_0_#3a0d0d] transition-transform ${
-            firing ? "translate-y-1 bg-[#ff5a4f] shadow-[0_2px_0_#3a0d0d]" : "bg-[#D32F2F]"
-          }`}
-          style={{
-            width: "var(--fire-size)",
-            height: "var(--fire-size)",
-            fontSize: "calc(var(--fire-size) * 0.2)",
-            touchAction: "none",
-          }}
-          onPointerDown={onFireDown}
-          onPointerUp={onFireUp}
-          onPointerCancel={onFireUp}
-          onLostPointerCapture={onFireUp}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          發射
-        </button>
-      </div>
+      {onFire && (
+        <div className="flex items-center justify-center" style={{ gridArea: "fire" }}>
+          <button
+            type="button"
+            aria-label="發射"
+            className={`rounded-full border-4 border-[#3a0d0d] font-black text-white shadow-[0_6px_0_#3a0d0d] transition-transform ${
+              firing ? "translate-y-1 bg-[#ff5a4f] shadow-[0_2px_0_#3a0d0d]" : "bg-[#D32F2F]"
+            }`}
+            style={{
+              width: "var(--fire-size)",
+              height: "var(--fire-size)",
+              fontSize: "calc(var(--fire-size) * 0.2)",
+              touchAction: "none",
+            }}
+            onPointerDown={onFireDown}
+            onPointerUp={onFireUp}
+            onPointerCancel={onFireUp}
+            onLostPointerCapture={onFireUp}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            發射
+          </button>
+        </div>
+      )}
     </>
   );
 }
