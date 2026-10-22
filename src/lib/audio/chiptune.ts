@@ -15,9 +15,11 @@ export type ChipSfx =
   | "pause"
   | "waka1"
   | "waka2"
-  | "eatGhost";
+  | "eatGhost"
+  | "medal"
+  | "bombBlast";
 
-export type ChipJingle = "stageStart" | "gameOver" | "stageClear" | "pacStart" | "pacDeath";
+export type ChipJingle = "stageStart" | "gameOver" | "stageClear" | "pacStart" | "pacDeath" | "warning";
 
 const noiseCache = new WeakMap<BaseAudioContext, AudioBuffer>();
 
@@ -146,6 +148,15 @@ export function playChipSfx(ctx: BaseAudioContext, dest: AudioNode, kind: ChipSf
     case "eatGhost":
       sq(ctx, dest, 180, t, 0.3, 0.07, "square", 1600);
       break;
+    // 復古雷電
+    case "medal":
+      sq(ctx, dest, f("B6"), t, 0.05, 0.05);
+      sq(ctx, dest, f("E7"), t + 0.05, 0.1, 0.05);
+      break;
+    case "bombBlast":
+      noise(ctx, dest, t, 1.2, 0.5, 2500, 60);
+      sq(ctx, dest, 200, t, 0.9, 0.3, "sine", 30);
+      break;
   }
 }
 
@@ -214,6 +225,11 @@ export function playChipJingle(ctx: BaseAudioContext, dest: AudioNode, kind: Chi
       }
       sq(ctx, dest, f("C5"), t + 1.75, 0.05, 0.07, "square", f("C6"));
       sq(ctx, dest, f("C5"), t + 1.9, 0.05, 0.07, "square", f("C6"));
+      break;
+    }
+    case "warning": {
+      // 大魔王來了：高低交替的警報聲，三次
+      for (let i = 0; i < 6; i++) sq(ctx, dest, i % 2 === 0 ? 880 : 660, t + i * 0.25, 0.22, 0.06, "square");
       break;
     }
   }

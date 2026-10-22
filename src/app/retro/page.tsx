@@ -30,6 +30,13 @@ export default function RetroModePage() {
           <span className="text-4xl mb-1">🟡</span>
           <span className="text-white">小精靈</span>
         </BigButton>
+        <BigButton
+          color="#C62828"
+          onClick={() => router.push("/retro/raiden")}
+        >
+          <span className="text-4xl mb-1">✈️</span>
+          <span className="text-white">復古雷電</span>
+        </BigButton>
       </div>
     </div>
   );
