@@ -11,6 +11,8 @@ import { carryOver, consumeTicks, createStage, startCarry, step } from "@/lib/ra
 import type { Carry, GameEvent, GameState } from "@/lib/raiden/sim";
 import { mergeHiScore, mergeProgress, parseHiScores, parseProgress, type DiffMap } from "@/lib/tank/score";
 import { drawGame } from "./raidenRender";
+import { loadSprites } from "./raidenSprites";
+import type { Sprites } from "./raidenSprites";
 
 // ---------- 最高分 / 最遠關卡（localStorage + useSyncExternalStore） ----------
 
@@ -124,6 +126,8 @@ export default function RaidenGame() {
   const [tallyInfo, setTallyInfo] = useState<TallyInfo | null>(null);
   const [endInfo, setEndInfo] = useState<EndInfo | null>(null);
   const [bombDown, setBombDown] = useState(false);
+  const [sprites, setSprites] = useState<Sprites | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const hi = useSyncExternalStore(hiStore.subscribe, hiStore.get, hiStore.server);
   const progress = useSyncExternalStore(progressStore.subscribe, progressStore.get, progressStore.server);
 
@@ -140,11 +144,29 @@ export default function RaidenGame() {
   const bombReqRef = useRef(false);
   const soundAtRef = useRef<Map<string, number>>(new Map());
   const startingRef = useRef(false);
+  const spritesRef = useRef<Sprites | null>(null);
 
   useEffect(() => {
     audioManager.init();
     audioManager.setVolume(settings.volume);
   }, [settings.volume]);
+
+  useEffect(() => {
+    let alive = true;
+    loadSprites().then(
+      (sp) => {
+        if (!alive) return;
+        spritesRef.current = sp;
+        setSprites(sp);
+      },
+      () => {
+        if (alive) setLoadFailed(true);
+      }
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // ---------- 小工具 ----------
   const goScreen = useCallback((s: Screen) => {
@@ -382,7 +404,8 @@ export default function RaidenGame() {
       }
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
-      if (g && ctx) drawGame(ctx, g);
+      const sp = spritesRef.current;
+      if (g && ctx && sp) drawGame(ctx, g, sp);
     };
     raf = requestAnimationFrame(loop);
 
@@ -616,10 +639,11 @@ export default function RaidenGame() {
 
             <button
               type="button"
+              disabled={!sprites}
               onClick={() => void startGame(difficulty, chosenStage)}
-              className="mt-6 w-full rounded-2xl bg-[#D32F2F] py-4 text-2xl font-black shadow-[0_6px_0_#7f1414] active:translate-y-1 active:shadow-[0_2px_0_#7f1414] transition-transform"
+              className="mt-6 w-full rounded-2xl bg-[#D32F2F] py-4 text-2xl font-black shadow-[0_6px_0_#7f1414] active:translate-y-1 active:shadow-[0_2px_0_#7f1414] transition-transform disabled:opacity-50"
             >
-              ▶ 開始第 {chosenStage} 關
+              {sprites ? `▶ 開始第 ${chosenStage} 關` : loadFailed ? "圖片載入失敗，請重新整理" : "載入中…"}
             </button>
 
             <div className="mt-6 rounded-2xl bg-white/5 p-4 text-sm font-bold leading-relaxed text-white/75">

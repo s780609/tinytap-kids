@@ -17,16 +17,16 @@ export interface EnemyDef {
 const DOWN = Math.PI / 2;
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
-  dart: { hp: 1, w: 10, h: 10, points: 100, ground: false, guns: [] },
+  dart: { hp: 1, w: 16, h: 14, points: 100, ground: false, guns: [] },
   fighter: {
     hp: 3,
-    w: 14,
+    w: 18,
     h: 14,
     points: 200,
     ground: false,
     guns: [{ pattern: { type: "aimed", n: 1, spread: 0, speed: 2 }, every: 80, first: 35 }],
   },
-  carrier: { hp: 12, w: 22, h: 18, points: 500, ground: false, guns: [], drop: "weapon" },
+  carrier: { hp: 12, w: 26, h: 18, points: 500, ground: false, guns: [], drop: "weapon" },
   tank: {
     hp: 6,
     w: 14,
@@ -46,8 +46,8 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   },
   gunship: {
     hp: 60,
-    w: 30,
-    h: 26,
+    w: 26,
+    h: 22,
     points: 2000,
     ground: false,
     guns: [
@@ -55,9 +55,9 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
       { pattern: { type: "aimed", n: 5, spread: 0.6, speed: 2 }, every: 130, first: 145 },
     ],
   },
-  boss1: { hp: 600, w: 64, h: 44, points: 10000, ground: false, guns: [] },
-  boss2: { hp: 900, w: 84, h: 44, points: 20000, ground: false, guns: [] },
-  boss3: { hp: 1300, w: 72, h: 60, points: 30000, ground: false, guns: [] },
+  boss1: { hp: 600, w: 58, h: 42, points: 10000, ground: false, guns: [] },
+  boss2: { hp: 900, w: 60, h: 44, points: 20000, ground: false, guns: [] },
+  boss3: { hp: 1300, w: 60, h: 46, points: 30000, ground: false, guns: [] },
 };
 
 export interface BossPhase {

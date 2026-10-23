@@ -1,19 +1,45 @@
 /**
  * 復古雷電純 canvas 繪圖（不含 React）。
- * canvas 本身就是 240×320，交給 CSS image-rendering: pixelated 放大，整個畫面自然是像素風。
+ * canvas 本身就是 240×320，交給 CSS image-rendering: pixelated 放大；飛機與地形用 Kenney Pixel Shmup 素材（CC0）。
  */
 import { H, W } from "@/lib/raiden/constants";
+import type { EnemyKind } from "@/lib/raiden/constants";
 import { ENEMIES, isBoss } from "@/lib/raiden/enemies";
-import { BOSS_ENTER } from "@/lib/raiden/paths";
+import { BOSS_ENTER, pathPos } from "@/lib/raiden/paths";
 import { BOMB_TICKS, findEnemy } from "@/lib/raiden/sim";
 import type { Enemy, GameState, Item } from "@/lib/raiden/sim";
+import { MAP_ROWS, TILE } from "@/lib/raiden/tilemap";
 import { missileItemKind, weaponItemKind } from "@/lib/raiden/weapons";
+import { mapCanvas, ship, silhouette, tile, tinted } from "./raidenSprites";
+import type { Frame, Sprites } from "./raidenSprites";
 
 type Ctx = CanvasRenderingContext2D;
 
-const WEAPON_COLOR = { vulcan: "#E53935", laser: "#1E88E5", plasma: "#8E24AA" } as const;
+/** 敵機用哪一架（ships.png 編號）；大魔王放大兩倍 */
+const SHIP_OF: Partial<Record<EnemyKind, number>> = {
+  dart: 10,
+  fighter: 9,
+  carrier: 17,
+  gunship: 7,
+  boss1: 2,
+  boss2: 1,
+  boss3: 15,
+};
+const PLAYER_SHIP = 0;
+const TILE_TANK = 28;
+const TILE_BOAT = 29;
+const TILE_TURRET = 16;
+const TILE_BARREL = 30;
+const TILE_BULLET = 0;
+const TILE_PLASMA = 2;
+const TILE_MISSILE = 12;
+const TILE_POWER = 25;
+const BOOM_FRAMES = [4, 5, 6, 7, 8];
 
-/** 0～1 的固定雜湊（背景隨機擺設用） */
+/** 武器球顏色（色相）：紅散彈、藍雷射（原色）、紫電漿 */
+const WEAPON_HUE = { vulcan: 2, laser: -1, plasma: 285 } as const;
+const OUTLINE = "#2B2D42";
+
 function hash(a: number, b: number): number {
   let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -32,244 +58,184 @@ function circle(ctx: Ctx, color: string, x: number, y: number, r: number): void 
   ctx.fill();
 }
 
-function poly(ctx: Ctx, color: string, pts: number[]): void {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(pts[0], pts[1]);
-  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
-  ctx.closePath();
-  ctx.fill();
+/** 以 (x, y) 為中心畫一格圖；rot 為順時針弧度（0 = 原本朝上） */
+function blit(ctx: Ctx, f: Frame, x: number, y: number, rot = 0, scale = 1, alpha = 1): void {
+  const w = f.sw * scale;
+  const h = f.sh * scale;
+  if (alpha !== 1) ctx.globalAlpha = alpha;
+  if (rot === 0) {
+    ctx.drawImage(f.img, f.sx, f.sy, f.sw, f.sh, Math.round(x - w / 2), Math.round(y - h / 2), w, h);
+  } else {
+    ctx.save();
+    ctx.translate(Math.round(x), Math.round(y));
+    ctx.rotate(rot);
+    ctx.drawImage(f.img, f.sx, f.sy, f.sw, f.sh, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  if (alpha !== 1) ctx.globalAlpha = 1;
 }
 
-// ───────── 背景 ─────────
+/** 旋轉角量化成 16 個方向，像素圖轉起來比較不會閃 */
+const snap = (a: number) => Math.round(a / (Math.PI / 8)) * (Math.PI / 8);
 
-const BAND = 40;
+// ───────── 背景與雲 ─────────
 
-function drawBackground(ctx: Ctx, s: GameState): void {
-  const terrain = s.def.terrain;
-  ctx.fillStyle = ["#4C8C3A", "#1D4F91", "#555B63"][terrain];
-  ctx.fillRect(0, 0, W, H);
-  const off = s.scrollY % BAND;
-  const base = Math.floor(s.scrollY / BAND);
-  for (let i = -2; i <= H / BAND + 1; i++) {
-    const b = base - i;
-    const y = i * BAND + off;
-    if (terrain === 0) drawGrassBand(ctx, b, y);
-    else if (terrain === 1) drawSeaBand(ctx, b, y, s.tick);
-    else drawFortBand(ctx, b, y, s.tick);
-  }
-}
-
-function drawGrassBand(ctx: Ctx, b: number, y: number): void {
-  if (hash(b, 1) < 0.5) rect(ctx, hash(b, 2) < 0.5 ? "#5FA347" : "#3E7530", hash(b, 3) * 180, y, 40 + hash(b, 4) * 60, BAND);
-  if (b % 9 === 0) {
-    rect(ctx, "#B59A6A", 0, y + 14, W, 12);
-    rect(ctx, "#9C8357", 0, y + 14, W, 2);
-  }
-  if (b % 9 !== 0 && hash(b, 5) < 0.3) {
-    const hx = 10 + hash(b, 6) * 200;
-    rect(ctx, "#8D6E63", hx, y + 12, 16, 12);
-    rect(ctx, "#C62828", hx - 2, y + 8, 20, 6);
-  }
-  const trees = Math.floor(hash(b, 7) * 6);
-  for (let k = 0; k < trees; k++) {
-    const tx = hash(b, 10 + k) * W;
-    const ty = y + hash(b, 20 + k) * BAND;
-    const r = 4 + hash(b, 30 + k) * 3;
-    circle(ctx, "#2D5E23", tx, ty, r);
-    circle(ctx, "#3F7D2E", tx - 1, ty - 1, r * 0.6);
-  }
-}
-
-function drawSeaBand(ctx: Ctx, b: number, y: number, tick: number): void {
-  for (let k = 0; k < 5; k++) {
-    const wx = (hash(b, 40 + k) * W + Math.sin(tick / 40 + k) * 3) | 0;
-    rect(ctx, "#3D74B8", wx, y + hash(b, 50 + k) * BAND, 8, 1);
-  }
-  if (hash(b, 41) < 0.18) {
-    const ix = hash(b, 42) * W;
-    const r = 18 + hash(b, 43) * 22;
-    circle(ctx, "#D9C27A", ix, y + BAND / 2, r);
-    circle(ctx, "#4C8C3A", ix, y + BAND / 2, r * 0.72);
-    circle(ctx, "#2D5E23", ix + r * 0.2, y + BAND / 2 - r * 0.1, r * 0.3);
-  }
-}
-
-function drawFortBand(ctx: Ctx, b: number, y: number, tick: number): void {
-  rect(ctx, "#474C53", 0, y, W, 1);
-  for (let x = 0; x < W; x += 60) rect(ctx, "#474C53", x, y, 1, BAND);
-  for (let x = 4; x < W; x += 60) {
-    rect(ctx, "#6C727B", x, y + 4, 2, 2);
-    rect(ctx, "#6C727B", x + 50, y + 34, 2, 2);
-  }
-  if (b % 7 === 0) {
-    for (let x = 0; x < W; x += 12) {
-      rect(ctx, "#F9A825", x, y + 16, 6, 6);
-      rect(ctx, "#212121", x + 6, y + 16, 6, 6);
+function drawBackground(ctx: Ctx, s: GameState, sp: Sprites): void {
+  const map = mapCanvas(sp, s.def.terrain);
+  const mapH = MAP_ROWS * TILE;
+  const top = (((mapH - H - Math.round(s.scrollY)) % mapH) + mapH) % mapH;
+  const first = Math.min(H, mapH - top);
+  ctx.drawImage(map, 0, top, W, first, 0, 0, W, first);
+  if (first < H) ctx.drawImage(map, 0, 0, W, H - first, 0, first, W, H - first);
+  if (s.def.terrain === 1) {
+    // 海面的小波光
+    for (let k = 0; k < 14; k++) {
+      const band = Math.floor((s.scrollY + k * 40) / 320);
+      const x = hash(band, k) * W;
+      const y = (k * 40 + s.scrollY) % 320;
+      if (Math.floor(s.tick / 20 + k) % 3 !== 0) rect(ctx, "#FFFFFF", x, H - y, 3, 1);
     }
-  } else if (hash(b, 60) < 0.4) {
-    rect(ctx, "#3B4046", hash(b, 61) * 160, y + 8, 60 + hash(b, 62) * 30, 24);
   }
-  if (hash(b, 63) < 0.5 && Math.floor(tick / 30 + b) % 2 === 0) rect(ctx, "#FF5252", hash(b, 64) * W, y + 20, 2, 2);
+}
+
+const CLOUD_BAND = 160;
+
+function drawClouds(ctx: Ctx, s: GameState): void {
+  const scroll = s.scrollY * 1.8;
+  const base = Math.floor(scroll / CLOUD_BAND);
+  ctx.fillStyle = s.def.terrain === 2 ? "rgba(120,110,100,0.35)" : "rgba(255,255,255,0.55)";
+  for (let i = -1; i <= H / CLOUD_BAND + 1; i++) {
+    const b = base - i;
+    if (hash(b, 90) < 0.45) continue;
+    const cy = i * CLOUD_BAND + (scroll % CLOUD_BAND) + hash(b, 91) * 60;
+    const cx = hash(b, 92) * W;
+    ctx.beginPath();
+    for (let k = 0; k < 5; k++) {
+      const r = 10 + hash(b, 100 + k) * 14;
+      ctx.moveTo(cx + (k - 2) * 14 + r, cy + hash(b, 110 + k) * 10);
+      ctx.arc(cx + (k - 2) * 14, cy + hash(b, 110 + k) * 10, r, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
 }
 
 // ───────── 敵人 ─────────
 
-function drawEnemy(ctx: Ctx, s: GameState, e: Enemy): void {
-  // 受傷時閃白；電漿光束每 tick 都在打，所以用一閃一閃的，不然會整隻變白
-  const f = e.flash > 0 && Math.floor(s.tick / 2) % 2 === 0;
-  const c = (color: string) => (f ? "#FFFFFF" : color);
-  const { x, y } = e;
-  const t = s.tick;
-  switch (e.kind) {
-    case "dart":
-      poly(ctx, c("#1B5E20"), [x, y + 6, x - 6, y - 5, x, y - 2, x + 6, y - 5]);
-      poly(ctx, c("#43A047"), [x, y + 4, x - 4, y - 3, x, y - 1, x + 4, y - 3]);
-      break;
-    case "fighter":
-      poly(ctx, c("#FF8F00"), [x - 8, y - 2, x + 8, y - 2, x + 3, y + 3, x - 3, y + 3]);
-      rect(ctx, c("#9EA7B0"), x - 2, y - 7, 4, 15);
-      rect(ctx, c("#5D6670"), x - 4, y - 7, 8, 2);
-      rect(ctx, c("#4FC3F7"), x - 1, y + 2, 2, 3);
-      break;
-    case "carrier": {
-      rect(ctx, c("#5B6630"), x - 12, y - 2, 24, 5);
-      rect(ctx, c("#7D8A3C"), x - 4, y - 9, 8, 18);
-      rect(ctx, c("#5B6630"), x - 7, y - 9, 14, 3);
-      const spin = Math.floor(t / 2) % 2 === 0;
-      for (const px of [x - 9, x + 9]) rect(ctx, "#DDDDDD", spin ? px - 4 : px - 1, y + 3, spin ? 8 : 2, 1);
-      rect(ctx, c("#FFD54F"), x - 1, y - 1, 2, 2);
-      break;
-    }
-    case "tank":
-      if (s.def.terrain === 1) {
-        // 海上關卡：砲艇
-        rect(ctx, "#E3F2FD", x - 2, y - 12, 4, 4);
-        poly(ctx, c("#8A8F96"), [x, y + 9, x - 5, y + 3, x - 5, y - 8, x + 5, y - 8, x + 5, y + 3]);
-        rect(ctx, c("#5F656C"), x - 3, y - 4, 6, 6);
-      } else {
-        rect(ctx, c("#2E2E1E"), x - 7, y - 7, 3, 14);
-        rect(ctx, c("#2E2E1E"), x + 4, y - 7, 3, 14);
-        rect(ctx, c("#6B6B3A"), x - 4, y - 6, 8, 12);
-      }
-      drawBarrel(ctx, c("#3A3A26"), x, y, e.aim, 8, 2);
-      circle(ctx, c("#8A8A4E"), x, y, 3);
-      break;
-    case "turret":
-      poly(ctx, c("#5F656C"), [x - 4, y - 8, x + 4, y - 8, x + 8, y - 4, x + 8, y + 4, x + 4, y + 8, x - 4, y + 8, x - 8, y + 4, x - 8, y - 4]);
-      circle(ctx, c("#8A9099"), x, y, 5);
-      drawBarrel(ctx, c("#2F3439"), x - 2 * Math.sin(e.aim), y + 2 * Math.cos(e.aim), e.aim, 10, 2);
-      drawBarrel(ctx, c("#2F3439"), x + 2 * Math.sin(e.aim), y - 2 * Math.cos(e.aim), e.aim, 10, 2);
-      break;
-    case "gunship": {
-      rect(ctx, c("#3E4B57"), x - 15, y - 3, 30, 6);
-      poly(ctx, c("#5D6D7E"), [x - 7, y - 12, x + 7, y - 12, x + 9, y + 6, x, y + 13, x - 9, y + 6]);
-      rect(ctx, c("#81D4FA"), x - 3, y + 4, 6, 4);
-      rect(ctx, c("#212121"), x - 14, y + 2, 3, 5);
-      rect(ctx, c("#212121"), x + 11, y + 2, 3, 5);
-      const a = t * 0.5;
-      ctx.strokeStyle = "rgba(230,230,230,0.8)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (const k of [0, Math.PI / 2]) {
-        ctx.moveTo(x + Math.cos(a + k) * 16, y - 2 + Math.sin(a + k) * 16);
-        ctx.lineTo(x - Math.cos(a + k) * 16, y - 2 - Math.sin(a + k) * 16);
-      }
-      ctx.stroke();
-      break;
-    }
-    case "boss1":
-    case "boss2":
-    case "boss3":
-      drawBoss(ctx, s, e, c);
-      break;
-  }
+/** 飛機朝向：看路線前一刻往哪裡飛；停著時朝下 */
+function heading(s: GameState, e: Enemy): number {
+  const prev = pathPos(e.path, Math.max(0, e.age - 3), s.def.scroll);
+  const dx = e.x - prev.x;
+  const dy = e.y - prev.y;
+  if (Math.hypot(dx, dy) < 0.5) return Math.PI;
+  return snap(Math.atan2(dy, dx) + Math.PI / 2);
 }
 
-function drawBarrel(ctx: Ctx, color: string, x: number, y: number, a: number, len: number, w: number): void {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = w;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
-  ctx.stroke();
+function flashing(s: GameState, e: Enemy): boolean {
+  // 電漿光束每 tick 都在打，所以用一閃一閃的，不然會整隻變白
+  return e.flash > 0 && Math.floor(s.tick / 2) % 2 === 0;
 }
 
-function drawBoss(ctx: Ctx, s: GameState, e: Enemy, c: (color: string) => string): void {
-  const { x, y } = e;
-  const t = s.tick;
-  const angry = e.phase > 0 && Math.floor(t / 10) % 2 === 0;
-  if (e.kind === "boss1") {
-    // 鋼鐵巨蟹：雙履帶大戰車
-    for (const side of [-1, 1]) {
-      rect(ctx, c("#2B2B2B"), x + side * 26 - 6, y - 22, 12, 44);
-      for (let k = 0; k < 6; k++) rect(ctx, c("#555"), x + side * 26 - 6, y - 22 + ((k * 8 + t) % 44), 12, 2);
-      poly(ctx, c("#6D4C41"), [x + side * 20, y + 14, x + side * 32, y + 26, x + side * 24, y + 28]);
+function drawGround(ctx: Ctx, s: GameState, sp: Sprites, e: Enemy): void {
+  const white = flashing(s, e);
+  if (e.kind === "tank") {
+    const n = s.def.terrain === 1 ? TILE_BOAT : TILE_TANK;
+    const f = tile(sp, n);
+    const rot = snap(e.aim + Math.PI / 2);
+    if (n === TILE_BOAT) {
+      // 砲艇後面的浪花
+      circle(ctx, "rgba(255,255,255,0.8)", e.x, e.y - 9, 3);
+      circle(ctx, "rgba(255,255,255,0.5)", e.x, e.y - 13, 2);
+      blit(ctx, f, e.x, e.y, 0);
+    } else {
+      blit(ctx, f, e.x, e.y, rot);
     }
-    rect(ctx, c("#8D6E63"), x - 20, y - 18, 40, 36);
-    rect(ctx, c("#6D4C41"), x - 20, y + 12, 40, 6);
-    circle(ctx, c("#A1887F"), x, y, 12);
-    circle(ctx, c(angry ? "#FF1744" : "#5D4037"), x, y, 5);
-    for (const ox of [-6, 6]) rect(ctx, c("#3E2723"), x + ox - 1, y + 8, 3, 14);
-  } else if (e.kind === "boss2") {
-    // 空中堡壘：大翅膀轟炸機
-    poly(ctx, c("#455A64"), [x - 42, y - 2, x + 42, y - 2, x + 34, y + 10, x - 34, y + 10]);
-    poly(ctx, c("#607D8B"), [x - 10, y - 22, x + 10, y - 22, x + 12, y + 18, x, y + 24, x - 12, y + 18]);
-    for (const ox of [-30, -18, 18, 30]) {
-      rect(ctx, c("#37474F"), x + ox - 3, y - 6, 6, 14);
-      rect(ctx, Math.floor(t / 3) % 2 ? "#FF9800" : "#FFC107", x + ox - 2, y - 10, 4, 4);
-    }
-    rect(ctx, c(angry ? "#FF1744" : "#81D4FA"), x - 3, y + 8, 6, 6);
+    if (white) blit(ctx, silhouette(sp, `t${n}`, f, "#FFFFFF"), e.x, e.y, n === TILE_BOAT ? 0 : rot);
+    if (n === TILE_BOAT) blit(ctx, tile(sp, TILE_BARREL), e.x, e.y, rot);
   } else {
-    // 最終核心：六角形要塞，外圈會轉
-    const pts: number[] = [];
-    for (let k = 0; k < 6; k++) pts.push(x + Math.cos(k * (Math.PI / 3)) * 34, y + Math.sin(k * (Math.PI / 3)) * 30);
-    poly(ctx, c("#263238"), pts);
-    const a = t * 0.02;
-    for (let k = 0; k < 8; k++) {
-      const ang = a + (k * Math.PI) / 4;
-      circle(ctx, c("#546E7A"), x + Math.cos(ang) * 24, y + Math.sin(ang) * 21, 4);
-    }
-    const pulse = 8 + Math.sin(t * 0.15) * 2;
-    circle(ctx, c("#B71C1C"), x, y, pulse + 3);
-    circle(ctx, c(angry ? "#FFFFFF" : "#FF1744"), x, y, pulse);
+    const base = tile(sp, TILE_TURRET);
+    blit(ctx, base, e.x, e.y);
+    if (white) blit(ctx, silhouette(sp, `t${TILE_TURRET}`, base, "#FFFFFF"), e.x, e.y);
+    blit(ctx, tile(sp, TILE_BARREL), e.x + Math.cos(e.aim) * 3, e.y + Math.sin(e.aim) * 3, snap(e.aim + Math.PI / 2));
   }
+}
+
+function drawAir(ctx: Ctx, s: GameState, sp: Sprites, e: Enemy): void {
+  const n = SHIP_OF[e.kind] ?? 9;
+  const f = ship(sp, n);
+  const boss = isBoss(e.kind);
+  const scale = boss ? 2 : 1;
+  const rot = boss ? Math.PI : heading(s, e);
+  blit(ctx, f, e.x, e.y, rot, scale);
+  if (flashing(s, e)) blit(ctx, silhouette(sp, `s${n}`, f, "#FFFFFF"), e.x, e.y, rot, scale, 0.85);
+  if (!boss) return;
+  // 大魔王：第二階段以後一閃一閃變紅；中間有發光的核心
+  if (e.phase > 0 && Math.floor(s.tick / 10) % 2 === 0) blit(ctx, silhouette(sp, `s${n}`, f, "#FF1744"), e.x, e.y, rot, scale, 0.35);
+  const pulse = 3 + Math.sin(s.tick * 0.2) * 1.5;
+  if (e.kind === "boss3") {
+    for (let k = 0; k < 4; k++) {
+      const a = s.tick * 0.03 + (k * Math.PI) / 2;
+      blit(ctx, tile(sp, TILE_TURRET), e.x + Math.cos(a) * 30, e.y + Math.sin(a) * 18);
+    }
+    circle(ctx, OUTLINE, e.x, e.y + 2, pulse + 4);
+    circle(ctx, "#FF1744", e.x, e.y + 2, pulse + 2);
+    circle(ctx, "#FFCDD2", e.x, e.y + 2, pulse * 0.5);
+  } else {
+    circle(ctx, OUTLINE, e.x, e.y + 8, pulse + 2);
+    circle(ctx, e.phase > 0 ? "#FF1744" : "#FFC107", e.x, e.y + 8, pulse);
+  }
+}
+
+function drawShadow(ctx: Ctx, sp: Sprites, f: Frame, key: string, x: number, y: number, rot: number, scale: number, lift: number): void {
+  blit(ctx, silhouette(sp, key, f, "#000000"), x + lift * 0.6, y + lift, rot, scale * 0.8, 0.25);
 }
 
 function drawBossBar(ctx: Ctx, s: GameState): void {
   const boss = s.enemies.find((e) => isBoss(e.kind) && e.hp > 0);
   if (!boss || boss.age < BOSS_ENTER) return;
-  rect(ctx, "rgba(0,0,0,0.5)", 19, 5, 202, 6);
+  rect(ctx, OUTLINE, 18, 4, 204, 8);
+  rect(ctx, "#5C1A1A", 20, 6, 200, 4);
   rect(ctx, "#FF1744", 20, 6, 200 * (boss.hp / boss.maxHp), 4);
+  rect(ctx, "#FF8A80", 20, 6, 200 * (boss.hp / boss.maxHp), 1);
 }
 
 // ───────── 道具、子彈、玩家 ─────────
 
-function drawItem(ctx: Ctx, it: Item, tick: number): void {
+function badge(ctx: Ctx, x: number, y: number, fill: string): void {
+  rect(ctx, OUTLINE, x - 7, y - 7, 14, 14);
+  rect(ctx, OUTLINE, x - 8, y - 6, 16, 12);
+  rect(ctx, fill, x - 6, y - 6, 12, 12);
+  rect(ctx, "rgba(255,255,255,0.35)", x - 6, y - 6, 12, 2);
+}
+
+function drawItem(ctx: Ctx, sp: Sprites, it: Item, tick: number): void {
   const { x, y } = it;
+  // 道具外圈的光暈，提醒可以撿
+  circle(ctx, `rgba(255,255,255,${0.25 + 0.2 * Math.sin(tick * 0.2)})`, x, y, 10);
   switch (it.kind) {
     case "weapon": {
-      const color = WEAPON_COLOR[weaponItemKind(it.age)];
-      circle(ctx, "#FFFFFF", x, y, 7);
-      circle(ctx, color, x, y, 6);
-      poly(ctx, "#FFFFFF", [x, y - 3, x + 3, y, x, y + 3, x - 3, y]);
+      const hue = WEAPON_HUE[weaponItemKind(it.age)];
+      const f = tile(sp, TILE_POWER);
+      blit(ctx, hue < 0 ? f : tinted(sp, `p`, f, hue), x, y);
       break;
     }
     case "missile": {
       const homing = missileItemKind(it.age) === "homing";
-      rect(ctx, "#FFFFFF", x - 7, y - 5, 14, 10);
-      rect(ctx, homing ? "#43A047" : "#FBC02D", x - 6, y - 4, 12, 8);
-      poly(ctx, "#FFFFFF", [x, y - 3, x + 3, y + 2, x - 3, y + 2]);
+      badge(ctx, x, y, homing ? "#43A047" : "#FBC02D");
+      blit(ctx, tile(sp, TILE_MISSILE), x, y, Math.PI / 4);
       break;
     }
     case "bomb":
-      circle(ctx, "#FFFFFF", x, y, 7);
-      circle(ctx, "#FB8C00", x, y, 6);
-      circle(ctx, "#3E2723", x, y + 1, 3);
-      rect(ctx, "#3E2723", x - 1, y - 5, 2, 3);
+      badge(ctx, x, y, "#FB8C00");
+      circle(ctx, OUTLINE, x, y + 1, 4);
+      rect(ctx, OUTLINE, x - 1, y - 5, 2, 3);
+      rect(ctx, "#FFEB3B", x, y - 6, 1, 1);
       break;
     case "medal": {
       const w = Math.max(1, Math.abs(Math.cos(tick * 0.15)) * 5);
+      ctx.fillStyle = OUTLINE;
+      ctx.beginPath();
+      ctx.ellipse(x, y, w + 1, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = "#FFC107";
       ctx.beginPath();
       ctx.ellipse(x, y, w, 5, 0, 0, Math.PI * 2);
@@ -278,25 +244,19 @@ function drawItem(ctx: Ctx, it: Item, tick: number): void {
       break;
     }
     case "life":
-      circle(ctx, "#FFFFFF", x, y, 7);
-      circle(ctx, "#E53935", x, y, 6);
+      badge(ctx, x, y, "#E53935");
       break;
   }
 }
 
-function drawPlayer(ctx: Ctx, s: GameState): void {
+function drawPlayer(ctx: Ctx, s: GameState, sp: Sprites): void {
   const p = s.player;
   if (!p.alive) return;
   if (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 === 0) return;
-  const { x, y } = p;
-  rect(ctx, Math.floor(s.tick / 2) % 2 ? "#FF9800" : "#FFEB3B", x - 1, y + 8, 2, 3 + (s.tick % 3));
-  poly(ctx, "#B71C1C", [x - 9, y + 4, x, y - 3, x + 9, y + 4, x + 9, y + 6, x - 9, y + 6]);
-  poly(ctx, "#E53935", [x - 8, y + 4, x, y - 2, x + 8, y + 4]);
-  poly(ctx, "#ECEFF1", [x, y - 10, x + 3, y - 3, x + 3, y + 8, x - 3, y + 8, x - 3, y - 3]);
-  rect(ctx, "#E53935", x - 1, y - 2, 2, 8);
-  rect(ctx, "#29B6F6", x - 1, y - 6, 2, 3);
-  rect(ctx, "#B71C1C", x - 5, y + 6, 3, 3);
-  rect(ctx, "#B71C1C", x + 2, y + 6, 3, 3);
+  const flame = Math.floor(s.tick / 2) % 2 === 0;
+  rect(ctx, flame ? "#FF9800" : "#FFEB3B", p.x - 2, p.y + 10, 4, 3 + (s.tick % 3));
+  rect(ctx, "#FFF59D", p.x - 1, p.y + 10, 2, 2);
+  blit(ctx, ship(sp, PLAYER_SHIP), p.x, p.y);
 }
 
 function drawPlasma(ctx: Ctx, s: GameState): void {
@@ -304,12 +264,12 @@ function drawPlasma(ctx: Ctx, s: GameState): void {
   const p = s.player;
   if (!target || !p.alive) return;
   const sx = p.x;
-  const sy = p.y - 10;
+  const sy = p.y - 12;
   const mx = (sx + target.x) / 2 + Math.sin(s.tick * 0.3) * 14;
   const my = Math.min(sy, target.y) - 20;
   const w = 1 + Math.ceil(s.weapon.level / 3);
   for (const [color, lw] of [
-    ["#6A1B9A", w + 2],
+    ["#4A148C", w + 3],
     ["#CE93D8", w],
     ["#FFFFFF", 1],
   ] as const) {
@@ -323,59 +283,73 @@ function drawPlasma(ctx: Ctx, s: GameState): void {
   circle(ctx, "#E1BEE7", target.x, target.y, 3 + (s.tick % 3));
 }
 
-export function drawGame(ctx: Ctx, s: GameState): void {
-  ctx.imageSmoothingEnabled = false;
-  ctx.lineCap = "butt";
-  drawBackground(ctx, s);
-
-  // 地面單位在下層
-  for (const e of s.enemies) if (e.hp > 0 && ENEMIES[e.kind].ground) drawEnemy(ctx, s, e);
-  for (const it of s.items) drawItem(ctx, it, s.tick);
-
+function drawShots(ctx: Ctx, s: GameState, sp: Sprites): void {
   for (const b of s.shots) {
     if (b.kind === "vulcan") {
-      rect(ctx, "#FF5A3C", b.x - 1.5, b.y - 4, 3, 8);
-      rect(ctx, "#FFD08A", b.x - 0.5, b.y - 3, 1, 6);
+      blit(ctx, tile(sp, TILE_BULLET), b.x, b.y, snap(Math.atan2(b.vy, b.vx) + Math.PI / 2));
     } else if (b.kind === "laser") {
-      rect(ctx, "#1565C0", b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
-      rect(ctx, "#81D4FA", b.x - b.w / 2 + 1, b.y - b.h / 2, Math.max(1, b.w - 2), b.h);
+      rect(ctx, "rgba(66,165,245,0.45)", b.x - b.w / 2 - 1, b.y - b.h / 2, b.w + 2, b.h);
+      rect(ctx, "#1E88E5", b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+      rect(ctx, "#B3E5FC", b.x - b.w / 2 + 1, b.y - b.h / 2, Math.max(1, b.w - 2), b.h);
       rect(ctx, "#FFFFFF", b.x - 0.5, b.y - b.h / 2, 1, b.h);
     } else {
-      rect(ctx, "#AB47BC", b.x - 2, b.y - 6, 4, 12);
-      rect(ctx, "#F3E5F5", b.x - 0.5, b.y - 5, 1, 10);
+      blit(ctx, tinted(sp, "plasma", tile(sp, TILE_PLASMA), 285), b.x, b.y);
     }
   }
   for (const m of s.missiles) {
-    rect(ctx, "#FF9800", m.x - 1, m.y + 3, 2, 2);
-    rect(ctx, m.kind === "homing" ? "#66BB6A" : "#FDD835", m.x - 1.5, m.y - 4, 3, 7);
+    const f = tile(sp, TILE_MISSILE);
+    const rot = snap(Math.atan2(m.vy, m.vx) + Math.PI / 2);
+    rect(ctx, Math.floor(s.tick / 2) % 2 ? "#FF9800" : "#FFEB3B", m.x - 1 - m.vx, m.y - 1 - m.vy, 2, 2);
+    blit(ctx, m.kind === "homing" ? tinted(sp, "homing", f, 110) : f, m.x, m.y, rot);
   }
+}
+
+// ───────── 主畫面 ─────────
+
+export function drawGame(ctx: Ctx, s: GameState, sp: Sprites): void {
+  ctx.imageSmoothingEnabled = false;
+  ctx.lineCap = "butt";
+  drawBackground(ctx, s, sp);
+
+  // 地面：戰車、砲台、道具
+  for (const e of s.enemies) if (e.hp > 0 && ENEMIES[e.kind].ground) drawGround(ctx, s, sp, e);
+
+  // 空中單位的影子（落在地面上、比本體小一點）
+  for (const e of s.enemies) {
+    if (e.hp <= 0 || ENEMIES[e.kind].ground) continue;
+    const n = SHIP_OF[e.kind] ?? 9;
+    const boss = isBoss(e.kind);
+    drawShadow(ctx, sp, ship(sp, n), `s${n}`, e.x, e.y, boss ? Math.PI : heading(s, e), boss ? 2 : 1, boss ? 26 : 16);
+  }
+  if (s.player.alive) drawShadow(ctx, sp, ship(sp, PLAYER_SHIP), `s${PLAYER_SHIP}`, s.player.x, s.player.y, 0, 1, 18);
+
+  drawClouds(ctx, s);
+  for (const it of s.items) drawItem(ctx, sp, it, s.tick);
+  drawShots(ctx, s, sp);
   drawPlasma(ctx, s);
 
-  for (const e of s.enemies) if (e.hp > 0 && !ENEMIES[e.kind].ground) drawEnemy(ctx, s, e);
-  drawPlayer(ctx, s);
+  for (const e of s.enemies) if (e.hp > 0 && !ENEMIES[e.kind].ground) drawAir(ctx, s, sp, e);
+  drawPlayer(ctx, s, sp);
 
   for (const b of s.booms) {
     const k = b.age / b.life;
-    const r = b.size * (0.35 + k * 0.65);
-    if (k < 0.6) {
-      circle(ctx, "#FF6D00", b.x, b.y, r);
-      circle(ctx, "#FFEB3B", b.x, b.y, r * (0.7 - k));
-    } else {
-      circle(ctx, "rgba(90,90,90,0.7)", b.x, b.y, r);
-    }
+    const frame = BOOM_FRAMES[Math.min(BOOM_FRAMES.length - 1, Math.floor(k * BOOM_FRAMES.length))];
+    const scale = b.size >= 24 ? 3 : b.size >= 12 ? 2 : 1;
+    blit(ctx, tile(sp, frame), b.x, b.y, 0, scale, k > 0.8 ? 0.6 : 1);
   }
 
   for (const b of s.ebullets) {
-    circle(ctx, "#FF4081", b.x, b.y, b.r + 0.5);
-    circle(ctx, "#FFE0B2", b.x, b.y, b.r - 1);
+    circle(ctx, OUTLINE, b.x, b.y, b.r + 1.5);
+    circle(ctx, "#FF4D8D", b.x, b.y, b.r + 0.5);
+    circle(ctx, "#FFE0EC", b.x - 0.5, b.y - 0.5, b.r - 1.2);
   }
 
   if (s.bomb) {
     const k = (BOMB_TICKS - s.bomb.ticks) / BOMB_TICKS;
-    ctx.fillStyle = `rgba(255,200,80,${Math.max(0, 0.5 - k)})`;
+    ctx.fillStyle = `rgba(255,220,120,${Math.max(0, 0.55 - k)})`;
     ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, 1 - k)})`;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(s.bomb.x, s.bomb.y, k * 360, 0, Math.PI * 2);
     ctx.stroke();
@@ -383,4 +357,3 @@ export function drawGame(ctx: Ctx, s: GameState): void {
 
   drawBossBar(ctx, s);
 }
-
