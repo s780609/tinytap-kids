@@ -5,7 +5,19 @@ import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
 import { ParticleEngine } from "@/lib/particles/ParticleEngine";
 import ParticleCanvas from "@/components/baby/ParticleCanvas";
-import { ART_SIZE, LEVELS, isNearSlot, layoutPuzzle, pieceRect, shuffledOrder, type Rect } from "@/lib/dino/puzzle";
+import {
+  ART_SIZE,
+  LEVELS,
+  TAB,
+  isNearSlot,
+  layoutPuzzle,
+  makeEdges,
+  piecePath,
+  pieceRect,
+  shuffledOrder,
+  type Edges,
+  type Rect,
+} from "@/lib/dino/puzzle";
 
 /** 拼圖主題：恐龍、魚……換圖、名字、顏色與拼完的聲音，玩法共用 */
 export interface PuzzleTheme {
@@ -51,6 +63,8 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
   /** order[托盤位置] = 碎片編號 */
   const [order, setOrder] = useState<number[]>([]);
   const [placed, setPlaced] = useState<boolean[]>([]);
+  /** 每片四邊的公母頭 */
+  const [edges, setEdges] = useState<Edges[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [done, setDone] = useState(false);
   /** 這次拼完過的，選單上打星星 */
@@ -78,7 +92,12 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
 
   const { cols, rows } = LEVELS[level];
   const n = cols * rows;
-  const L = layoutPuzzle(area.w, area.h, cols, rows);
+  const L = layoutPuzzle(area.w, area.h, cols, rows, 12, true);
+  /** 榫頭大小與凸出距離（px），每片的方塊要往外多留 M */
+  const tab = TAB * Math.min(L.cellW, L.cellH);
+  const M = L.margin;
+  /** 原圖座標換成畫面 px 的比例 */
+  const k = L.board.size / ART_SIZE;
 
   const start = (i: number) => {
     timersRef.current.forEach(clearTimeout);
@@ -86,6 +105,7 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
     audioManager.pop();
     setItem(i);
     setOrder(shuffledOrder(n));
+    setEdges(makeEdges(cols, rows));
     setPlaced(Array(n).fill(false));
     setDrag(null);
     setDone(false);
@@ -128,7 +148,10 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = toLocal(e);
     const from = L.tray[order.indexOf(piece)];
-    setDrag({ piece, pointerId: e.pointerId, dx: p.x - from.x, dy: p.y - from.y, x: from.x, y: from.y });
+    // 托盤上的碎片是縮小的，拿起來變回原大時，手指仍按在碎片上同一個位置
+    const dx = (p.x - from.x) / L.trayScale;
+    const dy = (p.y - from.y) / L.trayScale;
+    setDrag({ piece, pointerId: e.pointerId, dx, dy, x: p.x - dx, y: p.y - dy });
     audioManager.pop();
   };
 
@@ -208,8 +231,8 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
   const trayBox = {
     left: trayLeft,
     top: trayTop,
-    width: Math.max(...L.tray.map((p) => p.x)) + L.cellW - trayLeft,
-    height: Math.max(...L.tray.map((p) => p.y)) + L.cellH - trayTop,
+    width: Math.max(...L.tray.map((p) => p.x)) + L.cellW * L.trayScale - trayLeft,
+    height: Math.max(...L.tray.map((p) => p.y)) + L.cellH * L.trayScale - trayTop,
   };
 
   return (
@@ -265,55 +288,73 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
                   className="absolute pointer-events-none"
                   style={{ left: L.board.x, top: L.board.y, width: L.board.size, height: L.board.size }}
                 >
-                  {Array.from({ length: n }, (_, i) => {
-                    const r = pieceRect(i, cols, rows);
-                    const k = L.board.size / ART_SIZE;
-                    return (
-                      <rect
-                        key={i}
-                        x={r.x * k}
-                        y={r.y * k}
-                        width={r.w * k}
-                        height={r.h * k}
-                        fill="none"
-                        stroke="#9E9E9E"
-                        strokeWidth={2}
-                        strokeDasharray="8 6"
-                      />
-                    );
-                  })}
+                  {edges.length === n &&
+                    Array.from({ length: n }, (_, i) => {
+                      if (placed[i]) return null;
+                      const r = pieceRect(i, cols, rows);
+                      return (
+                        <path
+                          key={i}
+                          d={piecePath(r.x * k, r.y * k, L.cellW, L.cellH, edges[i], tab)}
+                          fill="none"
+                          stroke="#9E9E9E"
+                          strokeWidth={2}
+                          strokeDasharray="8 6"
+                        />
+                      );
+                    })}
                 </svg>
 
                 {/* 碎片 */}
-                {Array.from({ length: n }, (_, piece) => {
-                  const isDrag = drag?.piece === piece;
-                  const isPlaced = placed[piece];
-                  const pos = isPlaced ? L.slot(piece) : isDrag ? drag : L.tray[order.indexOf(piece)];
-                  return (
-                    <div
-                      key={piece}
-                      className="absolute overflow-hidden"
-                      style={{
-                        left: pos.x,
-                        top: pos.y,
-                        width: L.cellW,
-                        height: L.cellH,
-                        zIndex: isDrag ? 30 : isPlaced ? 5 : 10,
-                        borderRadius: isPlaced ? 0 : 12,
-                        boxShadow: isPlaced ? "none" : "0 0 0 3px #fff, 0 6px 14px rgba(0,0,0,0.25)",
-                        transform: isDrag ? "scale(1.06)" : "none",
-                        transition: isDrag ? "transform 0.15s" : "left 0.25s ease, top 0.25s ease, transform 0.15s",
-                        cursor: isPlaced ? "default" : "grab",
-                      }}
-                      onPointerDown={(e) => onDown(e, piece)}
-                      onPointerMove={onMove}
-                      onPointerUp={onUp}
-                      onPointerCancel={() => setDrag(null)}
-                    >
-                      <theme.Art id={d.id} view={pieceRect(piece, cols, rows)} className="w-full h-full" />
-                    </div>
-                  );
-                })}
+                {edges.length === n &&
+                  Array.from({ length: n }, (_, piece) => {
+                    const isDrag = drag?.piece === piece;
+                    const isPlaced = placed[piece];
+                    const inTray = !isDrag && !isPlaced;
+                    const pos = isPlaced ? L.slot(piece) : isDrag ? drag : L.tray[order.indexOf(piece)];
+                    const r = pieceRect(piece, cols, rows);
+                    // 方塊往外多留 M 給凸出去的公頭，用 clip-path 裁成拼圖片的形狀
+                    const shape = piecePath(M, M, L.cellW, L.cellH, edges[piece], tab);
+                    const m = M / k;
+                    return (
+                      <div
+                        key={piece}
+                        className="absolute pointer-events-none"
+                        style={{
+                          left: pos.x - M,
+                          top: pos.y - M,
+                          width: L.cellW + 2 * M,
+                          height: L.cellH + 2 * M,
+                          zIndex: isDrag ? 30 : isPlaced ? 5 : 10,
+                          filter: isPlaced ? "none" : "drop-shadow(0 5px 6px rgba(0,0,0,0.3))",
+                          // 縮放以碎片本體的左上角為準，托盤上的位置才對得上
+                          transformOrigin: `${M}px ${M}px`,
+                          transform: isDrag ? "scale(1.06)" : inTray ? `scale(${L.trayScale})` : "none",
+                          transition: isDrag ? "transform 0.15s" : "left 0.25s ease, top 0.25s ease, transform 0.15s",
+                        }}
+                      >
+                        <div
+                          className="w-full h-full pointer-events-auto"
+                          style={{ clipPath: `path('${shape}')`, cursor: isPlaced ? "default" : "grab" }}
+                          onPointerDown={(e) => onDown(e, piece)}
+                          onPointerMove={onMove}
+                          onPointerUp={onUp}
+                          onPointerCancel={() => setDrag(null)}
+                        >
+                          <theme.Art
+                            id={d.id}
+                            view={{ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m }}
+                            className="w-full h-full"
+                          />
+                        </div>
+                        {!isPlaced && (
+                          <svg className="absolute inset-0 w-full h-full overflow-visible">
+                            <path d={shape} fill="none" stroke="white" strokeWidth={3} strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
               </>
             )}
 
