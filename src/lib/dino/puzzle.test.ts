@@ -21,10 +21,11 @@ const overlaps = (a: Rect, b: Rect) =>
 const inside = (r: Rect, w: number, h: number) =>
   r.x >= -1e-6 && r.y >= -1e-6 && r.x + r.w <= w + 1e-6 && r.y + r.h <= h + 1e-6;
 
-test("六隻恐龍，代號與名字都不重複", () => {
-  assert.equal(DINOS.length, 6);
-  assert.equal(new Set(DINOS.map((d) => d.id)).size, 6);
-  assert.equal(new Set(DINOS.map((d) => d.name)).size, 6);
+test("十二隻恐龍，代號、名字與顏色都不重複", () => {
+  assert.equal(DINOS.length, 12);
+  assert.equal(new Set(DINOS.map((d) => d.id)).size, 12);
+  assert.equal(new Set(DINOS.map((d) => d.name)).size, 12);
+  assert.equal(new Set(DINOS.map((d) => d.color)).size, 12);
 });
 
 test("難度有 4 片、6 片與 8 片三種", () => {

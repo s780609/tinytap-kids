@@ -5,7 +5,19 @@
 /** 每張恐龍圖的 SVG 座標大小（正方形） */
 export const ART_SIZE = 300;
 
-export type DinoId = "trex" | "triceratops" | "stegosaurus" | "brachiosaurus" | "pteranodon" | "ankylosaurus";
+export type DinoId =
+  | "trex"
+  | "triceratops"
+  | "stegosaurus"
+  | "brachiosaurus"
+  | "pteranodon"
+  | "ankylosaurus"
+  | "velociraptor"
+  | "spinosaurus"
+  | "parasaurolophus"
+  | "pachycephalosaurus"
+  | "plesiosaurus"
+  | "baby";
 
 export interface Dino {
   id: DinoId;
@@ -20,6 +32,12 @@ export const DINOS: Dino[] = [
   { id: "brachiosaurus", name: "腕龍", color: "#42A5F5" },
   { id: "pteranodon", name: "翼手龍", color: "#EC407A" },
   { id: "ankylosaurus", name: "甲龍", color: "#8D6E63" },
+  { id: "velociraptor", name: "迅猛龍", color: "#7E57C2" },
+  { id: "spinosaurus", name: "棘龍", color: "#EF5350" },
+  { id: "parasaurolophus", name: "副櫛龍", color: "#C0CA33" },
+  { id: "pachycephalosaurus", name: "厚頭龍", color: "#5C6BC0" },
+  { id: "plesiosaurus", name: "蛇頸龍", color: "#00838F" },
+  { id: "baby", name: "恐龍寶寶", color: "#FF8A65" },
 ];
 
 export const LEVELS = [
