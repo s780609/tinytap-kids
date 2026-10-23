@@ -5,20 +5,28 @@ import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
 import { ParticleEngine } from "@/lib/particles/ParticleEngine";
 import ParticleCanvas from "@/components/baby/ParticleCanvas";
-import DinoArt from "@/components/toddler/dino/DinoArt";
-import {
-  ART_SIZE,
-  DINOS,
-  LEVELS,
-  isNearSlot,
-  layoutPuzzle,
-  pieceRect,
-  shuffledOrder,
-  type DinoId,
-} from "@/lib/dino/puzzle";
+import { ART_SIZE, LEVELS, isNearSlot, layoutPuzzle, pieceRect, shuffledOrder, type Rect } from "@/lib/dino/puzzle";
 
-/** 恐龍叫聲：獅子吼放慢 */
-const ROAR = "/sounds/animals/lion.mp3";
+/** 拼圖主題：恐龍、魚……換圖、名字、顏色與拼完的聲音，玩法共用 */
+export interface PuzzleTheme {
+  title: string;
+  items: { id: string; name: string; color: string }[];
+  /** 整張圖或其中一塊（view 是要裁出來的範圍，座標同 0~ART_SIZE 的原圖） */
+  Art: (props: { id: string; view?: Rect; className?: string; style?: React.CSSProperties }) => React.JSX.Element;
+  /** 背景、標題與按鈕的主色、淺色按鈕上的字 */
+  bg: string;
+  accent: string;
+  accentText: string;
+  /** 難度按鈕的小圖示（4 / 6 / 8 片），不給就用預設的 🐣 🦕 🦖 */
+  levelIcons?: string[];
+  /** 回選單與下一張的按鈕，例如「🦕 換一隻」「下一隻 ➡️」 */
+  switchLabel: string;
+  nextLabel: string;
+  /** 要先載入的音檔 */
+  preload?: string[];
+  /** 拼完後（彩帶之後）的音效，例如恐龍吼一聲 */
+  cheer: () => void;
+}
 
 interface Drag {
   piece: number;
@@ -30,7 +38,7 @@ interface Drag {
   y: number;
 }
 
-export default function DinoPuzzleGame() {
+export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
   const { settings } = useSettings();
   const areaRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ParticleEngine | null>(null);
@@ -38,15 +46,15 @@ export default function DinoPuzzleGame() {
 
   // 預設最難的 8 片
   const [level, setLevel] = useState(LEVELS.length - 1);
-  const [dino, setDino] = useState<number | null>(null);
+  const [item, setItem] = useState<number | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
   /** order[托盤位置] = 碎片編號 */
   const [order, setOrder] = useState<number[]>([]);
   const [placed, setPlaced] = useState<boolean[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [done, setDone] = useState(false);
-  /** 這次拼完過的恐龍，選單上打星星 */
-  const [finished, setFinished] = useState<DinoId[]>([]);
+  /** 這次拼完過的，選單上打星星 */
+  const [finished, setFinished] = useState<string[]>([]);
 
   useEffect(() => {
     audioManager.init();
@@ -54,12 +62,12 @@ export default function DinoPuzzleGame() {
   }, [settings.volume]);
 
   useEffect(() => {
-    audioManager.preload(ROAR);
+    theme.preload?.forEach((f) => audioManager.preload(f));
     const timers = timersRef;
     return () => timers.current.forEach(clearTimeout);
-  }, []);
+  }, [theme]);
 
-  const playing = dino !== null;
+  const playing = item !== null;
   useEffect(() => {
     const el = areaRef.current;
     if (!playing || !el) return;
@@ -76,7 +84,7 @@ export default function DinoPuzzleGame() {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
     audioManager.pop();
-    setDino(i);
+    setItem(i);
     setOrder(shuffledOrder(n));
     setPlaced(Array(n).fill(false));
     setDrag(null);
@@ -86,13 +94,13 @@ export default function DinoPuzzleGame() {
   const backToPicker = () => {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
-    setDino(null);
+    setItem(null);
     setDrag(null);
     setDone(false);
   };
 
   const celebrate = (i: number) => {
-    const d = DINOS[i];
+    const d = theme.items[i];
     timersRef.current.push(
       setTimeout(() => {
         setDone(true);
@@ -105,7 +113,7 @@ export default function DinoPuzzleGame() {
           engineRef.current?.confetti(cx, cy, 50);
         }
       }, 350),
-      setTimeout(() => audioManager.playFile(ROAR, 0.6), 900),
+      setTimeout(theme.cheer, 900),
       setTimeout(() => audioManager.speak(`${d.name}！`), 1900)
     );
   };
@@ -131,7 +139,7 @@ export default function DinoPuzzleGame() {
   };
 
   const onUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!drag || e.pointerId !== drag.pointerId || dino === null) return;
+    if (!drag || e.pointerId !== drag.pointerId || item === null) return;
     const s = L.slot(drag.piece);
     setDrag(null);
     // 放錯就自己滑回托盤，不扣分也不發出錯誤聲
@@ -142,16 +150,18 @@ export default function DinoPuzzleGame() {
     audioManager.ding();
     const r = areaRef.current?.getBoundingClientRect();
     if (r) {
-      engineRef.current?.burst(r.left + s.x + L.cellW / 2, r.top + s.y + L.cellH / 2, DINOS[dino].color, 18);
+      engineRef.current?.burst(r.left + s.x + L.cellW / 2, r.top + s.y + L.cellH / 2, theme.items[item].color, 18);
     }
-    if (next.every(Boolean)) celebrate(dino);
+    if (next.every(Boolean)) celebrate(item);
   };
 
-  // ---------- 選恐龍 ----------
+  // ---------- 選一張圖 ----------
   if (!playing) {
     return (
       <div className="flex flex-col items-center h-screen overflow-y-auto p-6 pt-20 pb-10 gap-4 select-none">
-        <h1 className="text-3xl md:text-4xl font-black text-[#8BC34A] animate-bounce-in">🦖 恐龍拼圖</h1>
+        <h1 className="text-3xl md:text-4xl font-black animate-bounce-in" style={{ color: theme.accent }}>
+          {theme.title}
+        </h1>
 
         <div className="flex flex-wrap justify-center gap-2">
           {LEVELS.map((lv, i) => (
@@ -161,24 +171,23 @@ export default function DinoPuzzleGame() {
                 audioManager.pop();
                 setLevel(i);
               }}
-              className={`px-4 py-2 rounded-full text-lg font-bold shadow active:scale-95 transition ${
-                level === i ? "bg-[#8BC34A] text-white" : "bg-white text-[#689F38]"
-              }`}
+              className="px-4 py-2 rounded-full text-lg font-bold shadow active:scale-95 transition"
+              style={level === i ? { backgroundColor: theme.accent, color: "white" } : { backgroundColor: "white", color: theme.accentText }}
             >
-              {lv.label}
+              {theme.levelIcons ? `${theme.levelIcons[i]} ${lv.cols * lv.rows} 片` : lv.label}
             </button>
           ))}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl">
-          {DINOS.map((d, i) => (
+          {theme.items.map((d, i) => (
             <button
               key={d.id}
               onClick={() => start(i)}
               className="relative flex flex-col items-center rounded-3xl p-2 pb-3 shadow-lg active:scale-95 transition-transform"
               style={{ backgroundColor: d.color }}
             >
-              <DinoArt id={d.id} className="w-full aspect-square rounded-2xl" />
+              <theme.Art id={d.id} className="w-full aspect-square rounded-2xl" />
               <span className="mt-2 text-2xl font-black text-white">{d.name}</span>
               {finished.includes(d.id) && (
                 <span className="absolute top-1 right-2 text-3xl drop-shadow animate-bounce-in">⭐</span>
@@ -191,9 +200,9 @@ export default function DinoPuzzleGame() {
   }
 
   // ---------- 拼圖 ----------
-  const d = DINOS[dino];
+  const d = theme.items[item];
   const ready = L.board.size > 0;
-  // 拼完後按鈕放在原本的托盤區，不會蓋到恐龍
+  // 拼完後按鈕放在原本的托盤區，不會蓋到圖
   const trayLeft = Math.min(...L.tray.map((p) => p.x));
   const trayTop = Math.min(...L.tray.map((p) => p.y));
   const trayBox = {
@@ -205,8 +214,8 @@ export default function DinoPuzzleGame() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col bg-[#F1F8E9] select-none overflow-hidden"
-      style={{ touchAction: "none" }}
+      className="fixed inset-0 flex flex-col select-none overflow-hidden"
+      style={{ touchAction: "none", backgroundColor: theme.bg }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <ParticleCanvas engineRef={engineRef} />
@@ -217,9 +226,10 @@ export default function DinoPuzzleGame() {
         </h1>
         <button
           onClick={backToPicker}
-          className="px-4 py-2 rounded-full bg-white text-lg font-bold text-[#689F38] shadow active:scale-95"
+          className="px-4 py-2 rounded-full bg-white text-lg font-bold shadow active:scale-95"
+          style={{ color: theme.accentText }}
         >
-          🦕 換一隻
+          {theme.switchLabel}
         </button>
       </div>
 
@@ -232,14 +242,14 @@ export default function DinoPuzzleGame() {
               style={{ left: L.board.x - 6, top: L.board.y - 6, width: L.board.size + 12, height: L.board.size + 12 }}
             />
             {done ? (
-              <DinoArt
+              <theme.Art
                 id={d.id}
                 className="absolute animate-celebrate"
                 style={{ left: L.board.x, top: L.board.y, width: L.board.size, height: L.board.size }}
               />
             ) : (
               <>
-                <DinoArt
+                <theme.Art
                   id={d.id}
                   className="absolute"
                   style={{
@@ -300,7 +310,7 @@ export default function DinoPuzzleGame() {
                       onPointerUp={onUp}
                       onPointerCancel={() => setDrag(null)}
                     >
-                      <DinoArt id={d.id} view={pieceRect(piece, cols, rows)} className="w-full h-full" />
+                      <theme.Art id={d.id} view={pieceRect(piece, cols, rows)} className="w-full h-full" />
                     </div>
                   );
                 })}
@@ -313,17 +323,18 @@ export default function DinoPuzzleGame() {
                 style={trayBox}
               >
                 <button
-                  onClick={() => start(dino)}
-                  className="px-6 py-4 rounded-2xl bg-[#8BC34A] text-white text-xl font-bold shadow-lg active:scale-95"
+                  onClick={() => start(item)}
+                  className="px-6 py-4 rounded-2xl text-white text-xl font-bold shadow-lg active:scale-95"
+                  style={{ backgroundColor: theme.accent }}
                 >
                   🔁 再拼一次
                 </button>
                 <button
-                  onClick={() => start((dino + 1) % DINOS.length)}
+                  onClick={() => start((item + 1) % theme.items.length)}
                   className="px-6 py-4 rounded-2xl text-white text-xl font-bold shadow-lg active:scale-95"
-                  style={{ backgroundColor: DINOS[(dino + 1) % DINOS.length].color }}
+                  style={{ backgroundColor: theme.items[(item + 1) % theme.items.length].color }}
                 >
-                  下一隻 ➡️
+                  {theme.nextLabel}
                 </button>
               </div>
             )}

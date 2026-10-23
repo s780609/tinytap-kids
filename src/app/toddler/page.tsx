@@ -95,6 +95,14 @@ export default function ToddlerModePage() {
           <span className="text-4xl mb-1">🦖</span>
           <span className="text-white">恐龍拼圖</span>
         </BigButton>
+
+        <BigButton
+          color="#29B6F6"
+          onClick={() => router.push("/toddler/fish-puzzle")}
+        >
+          <span className="text-4xl mb-1">🐠</span>
+          <span className="text-white">魚類拼圖</span>
+        </BigButton>
       </div>
     </div>
   );
