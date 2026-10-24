@@ -67,8 +67,8 @@ export interface LevelSpec {
   idleTicks: number;
 }
 
-/** 100% 速度：每秒 8 格 */
-const BASE = 8 / 60;
+/** 100% 速度：每秒 6 格（原本 8 格在手機小迷宮上太快） */
+const BASE = 6 / 60;
 const SEC = 60;
 
 /** 經典模式每關變藍秒數（第 19 關以後不會變藍，只會掉頭） */
