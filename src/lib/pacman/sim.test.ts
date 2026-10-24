@@ -260,8 +260,8 @@ test("難度：輕鬆模式鬼比較慢、變藍比較久；經典後期不會�
   assert.ok(levelSpec(DIFFICULTIES.classic, 5).pacSpeed > c1.pacSpeed);
 });
 
-test("速度：第 1 關小精靈每秒 4.8 格，鬼比小精靈慢一點", () => {
+test("速度：第 1 關小精靈每秒 4 格，鬼比小精靈慢一點", () => {
   const s1 = levelSpec(DIFFICULTIES.classic, 1);
-  assert.ok(Math.abs(s1.pacSpeed * 60 - 4.8) < 1e-9);
+  assert.ok(Math.abs(s1.pacSpeed * 60 - 4) < 1e-9);
   assert.ok(s1.ghostSpeed < s1.pacSpeed);
 });
