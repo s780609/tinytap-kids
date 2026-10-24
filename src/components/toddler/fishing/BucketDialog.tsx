@@ -1,6 +1,7 @@
 "use client";
 
 import { CATCH_TYPES, type CatchKind } from "@/lib/fishing/fishingLogic";
+import { CatchIcon } from "./CatchIcon";
 
 interface BucketDialogProps {
   bucket: CatchKind[];
@@ -42,9 +43,7 @@ export default function BucketDialog({ bucket, onRelease, onAquarium, onClose }:
                   {/* 有幾隻就排幾隻，小朋友數得出來 */}
                   <div className="flex flex-wrap gap-0.5 mt-0.5" aria-label={`${count} ${type.unit}`}>
                     {Array.from({ length: count }, (_, i) => (
-                      <span key={i} className="text-2xl leading-none">
-                        {type.emoji}
-                      </span>
+                      <CatchIcon key={i} kind={type.kind} size={30} />
                     ))}
                   </div>
                 </div>

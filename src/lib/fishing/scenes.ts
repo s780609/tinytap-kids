@@ -1,7 +1,9 @@
 /**
  * 釣魚池的場景：白天、黃昏、夜晚、下雨、春天、秋天、冬天。
- * 每次進來隨機一種，右上角的按鈕可以換。
+ * 每次進來隨機一種，右上角的按鈕可以換；每種天氣池裡的魚不一樣。
  */
+
+import type { CatchKind } from "./fishingLogic.ts";
 
 export type SceneId = "day" | "sunset" | "night" | "rain" | "spring" | "autumn" | "winter";
 
@@ -24,16 +26,18 @@ export interface Scene {
   moon?: boolean;
   /** 池邊結一圈薄冰 */
   ice?: boolean;
+  /** 這種天氣會出現的一般魚（稀有獵物與垃圾到處都有） */
+  fish: CatchKind[];
 }
 
 export const SCENES: Scene[] = [
-  { id: "day", label: "晴天", emoji: "☀️", grass: "#A5D6A7", grassDark: "#81C784", waterTop: "#81D4FA", waterBottom: "#0288D1", lilyPad: "#66BB6A", weather: "none", tint: null },
-  { id: "sunset", label: "黃昏", emoji: "🌇", grass: "#C5D99A", grassDark: "#A8C27A", waterTop: "#FFCC80", waterBottom: "#5C6BC0", lilyPad: "#7CB342", weather: "none", tint: "rgba(255,138,101,0.12)" },
-  { id: "night", label: "夜晚", emoji: "🌙", grass: "#4E6E58", grassDark: "#3E5A47", waterTop: "#3949AB", waterBottom: "#1A237E", lilyPad: "#388E3C", weather: "fireflies", tint: "rgba(13,27,62,0.22)", moon: true },
-  { id: "rain", label: "下雨", emoji: "🌧️", grass: "#94BFA0", grassDark: "#7AA889", waterTop: "#90A4AE", waterBottom: "#37627A", lilyPad: "#558B2F", weather: "rain", tint: "rgba(96,125,139,0.15)" },
-  { id: "spring", label: "春天", emoji: "🌸", grass: "#B9E4B0", grassDark: "#9CD58F", waterTop: "#B3E5FC", waterBottom: "#039BE5", lilyPad: "#66BB6A", weather: "petals", tint: null },
-  { id: "autumn", label: "秋天", emoji: "🍁", grass: "#D7C78A", grassDark: "#C2AE6A", waterTop: "#A7C7D9", waterBottom: "#3B7EA1", lilyPad: "#9E9D24", weather: "leaves", tint: "rgba(255,167,38,0.06)" },
-  { id: "winter", label: "冬天", emoji: "⛄", grass: "#E8F1F5", grassDark: "#CFDDE5", waterTop: "#B2EBF2", waterBottom: "#4F9FC0", lilyPad: "#81A784", weather: "snow", tint: null, ice: true },
+  { id: "day", label: "晴天", emoji: "☀️", grass: "#A5D6A7", grassDark: "#81C784", waterTop: "#81D4FA", waterBottom: "#0288D1", lilyPad: "#66BB6A", weather: "none", tint: null, fish: ["koi", "puffer", "turtle", "crab", "shark", "octopus"] },
+  { id: "sunset", label: "黃昏", emoji: "🌇", grass: "#C5D99A", grassDark: "#A8C27A", waterTop: "#FFCC80", waterBottom: "#5C6BC0", lilyPad: "#7CB342", weather: "none", tint: "rgba(255,138,101,0.12)", fish: ["koi", "shrimp", "crab", "octopus", "turtle"] },
+  { id: "night", label: "夜晚", emoji: "🌙", grass: "#4E6E58", grassDark: "#3E5A47", waterTop: "#3949AB", waterBottom: "#1A237E", lilyPad: "#388E3C", weather: "fireflies", tint: "rgba(13,27,62,0.22)", moon: true, fish: ["squid", "octopus", "lobster", "crab", "shark"] },
+  { id: "rain", label: "下雨", emoji: "🌧️", grass: "#94BFA0", grassDark: "#7AA889", waterTop: "#90A4AE", waterBottom: "#37627A", lilyPad: "#558B2F", weather: "rain", tint: "rgba(96,125,139,0.15)", fish: ["frog", "koi", "turtle", "shrimp", "puffer"] },
+  { id: "spring", label: "春天", emoji: "🌸", grass: "#B9E4B0", grassDark: "#9CD58F", waterTop: "#B3E5FC", waterBottom: "#039BE5", lilyPad: "#66BB6A", weather: "petals", tint: null, fish: ["koi", "frog", "turtle", "shrimp", "crab"] },
+  { id: "autumn", label: "秋天", emoji: "🍁", grass: "#D7C78A", grassDark: "#C2AE6A", waterTop: "#A7C7D9", waterBottom: "#3B7EA1", lilyPad: "#9E9D24", weather: "leaves", tint: "rgba(255,167,38,0.06)", fish: ["crab", "lobster", "koi", "puffer", "turtle"] },
+  { id: "winter", label: "冬天", emoji: "⛄", grass: "#E8F1F5", grassDark: "#CFDDE5", waterTop: "#B2EBF2", waterBottom: "#4F9FC0", lilyPad: "#81A784", weather: "snow", tint: null, ice: true, fish: ["penguin", "seal", "puffer", "octopus", "crab"] },
 ];
 
 export function getScene(id: SceneId): Scene {
@@ -48,4 +52,9 @@ export function pickScene(rand: () => number = Math.random): SceneId {
 export function nextScene(id: SceneId): SceneId {
   const i = SCENES.findIndex((s) => s.id === id);
   return SCENES[(i + 1) % SCENES.length].id;
+}
+
+/** 這種魚在哪些天氣出現（圖鑑上的提示）；稀有獵物與垃圾回傳空陣列 */
+export function scenesWith(kind: CatchKind): Scene[] {
+  return SCENES.filter((s) => s.fish.includes(kind));
 }

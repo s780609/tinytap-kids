@@ -4,17 +4,20 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
 import {
+  CATCH_TYPES,
   REEL_TURNS_NEEDED,
   angleDelta,
   createSwimmer,
   createSwimmers,
   getCatchType,
   isReelDone,
+  treasureContents,
   nearestSwimmer,
   pickRandomKind,
   pokeSwimmer,
   releaseSpot,
   removeGone,
+  shooAway,
   spawnFromEdge,
   swimmerAt,
   tapReel,
@@ -38,8 +41,8 @@ import {
   applyCatch,
   createTask,
   isTaskDone,
-  taskEmoji,
   taskFavor,
+  taskPossible,
   taskText,
   type FishingTask,
 } from "@/lib/fishing/fishingTasks";
@@ -60,7 +63,6 @@ import {
 import {
   beginPond,
   drawEffects,
-  drawEmoji,
   drawRod,
   drawTint,
   drawWeather,
@@ -68,6 +70,7 @@ import {
   type Rect,
 } from "./fishing/drawPond";
 import FishDexDialog from "./fishing/FishDexDialog";
+import { CatchIcon, drawCatch, preloadCatchArt } from "./fishing/CatchIcon";
 import BucketDialog from "./fishing/BucketDialog";
 import Aquarium from "./fishing/Aquarium";
 
@@ -183,7 +186,7 @@ export default function FishingGame() {
   /** 釣上來、等小朋友決定要不要留下的那隻 */
   const [choice, setChoice] = useState<CatchKind | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [message, setMessage] = useState<string | null>("點一下池塘就能丟竿 🎣");
+  const [message, setMessage] = useState<{ text: string; icon?: CatchKind } | null>({ text: "點一下池塘就能丟竿 🎣" });
 
   const phaseRef = useRef<Phase>("idle");
   const geomRef = useRef<Geometry | null>(null);
@@ -217,14 +220,16 @@ export default function FishingGame() {
   const puffRef = useRef(0);
   const sparkleTimerRef = useRef(0);
   const tapReelRef = useRef(settings.fishingTapReel);
+  /** 主迴圈裡的「宣布釣到什麼」（打開寶箱時要用） */
+  const announceRef = useRef<((type: CatchType, g: Geometry) => void) | null>(null);
 
   const setPhaseBoth = useCallback((p: Phase) => {
     phaseRef.current = p;
     setPhase(p);
   }, []);
 
-  const showMessage = useCallback((text: string, ms = 1800) => {
-    setMessage(text);
+  const showMessage = useCallback((text: string, ms = 1800, icon?: CatchKind) => {
+    setMessage({ text, icon });
     if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
     msgTimerRef.current = setTimeout(() => setMessage(null), ms);
   }, []);
@@ -252,6 +257,10 @@ export default function FishingGame() {
   useEffect(() => {
     tapReelRef.current = settings.fishingTapReel;
   }, [settings.fishingTapReel]);
+
+  useEffect(() => {
+    preloadCatchArt(CATCH_TYPES.map((c) => c.kind));
+  }, []);
 
   // 換場景或畫面大小改變：重新產生天氣粒子
   useEffect(() => {
@@ -283,12 +292,14 @@ export default function FishingGame() {
     };
     setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     if (swimmersRef.current.length === 0) {
-      // 第一次量到畫面大小：放魚、隨機挑場景
-      swimmersRef.current = createSwimmers(initialCount());
-      setSceneId(pickScene());
+      // 第一次量到畫面大小：隨機挑場景，放這種天氣會出現的魚
+      const first = getScene(pickScene());
+      sceneRef.current = first;
+      setSceneId(first.id);
+      swimmersRef.current = createSwimmers(initialCount(), Math.random, first.fish);
     }
     if (!taskRef.current) {
-      updateTask(createTask(swimmersRef.current.map((s) => s.kind)));
+      updateTask(createTask(swimmersRef.current.map((s) => s.kind), Math.random, undefined, sceneRef.current.fish));
     }
   }, [updateTask]);
 
@@ -422,11 +433,30 @@ export default function FishingGame() {
     reelDragRef.current.active = false;
   };
 
-  // ---------- 釣上來後：收下或丟回去 ----------
-  const decide = useCallback((action: "keep" | "throw") => {
+  // ---------- 釣上來後：收下或丟回去（寶箱要先打開） ----------
+  const decide = useCallback((action: "keep" | "throw" | "open") => {
     const g = geomRef.current;
     const hooked = hookedRef.current;
     if (!g || !hooked || phaseRef.current !== "landing" || landingRef.current.stage !== "show") return;
+    if (action === "open") {
+      // 寶箱打開：變成裡面的東西，魚照樣選收下或丟回去，垃圾直接飛到草地
+      const type = getCatchType(treasureContents());
+      hooked.kind = type.kind;
+      effectsRef.current.push(...sparkles(g.rodTip.x, g.rodTip.y + 20, 14), ...confetti(g.w, 40));
+      audioManager.chime();
+      if (type.isJunk) {
+        setChoice(null);
+        const target = junkSlot(g.w, g.h, junkPileRef.current.length);
+        landingRef.current = { stage: "toTarget", t: 0, tx: target.x, ty: target.y, nx: 0, ny: 0 };
+        showMessage(`寶箱裡是${type.label}…`, 1400, type.kind);
+        audioManager.speak(`寶箱裡是${type.label}`);
+      } else {
+        announceRef.current?.(type, g);
+        showMessage(`寶箱裡是${type.label}！`, 2400, type.kind);
+        setChoice(type.kind);
+      }
+      return;
+    }
     setChoice(null);
     audioManager.whoosh();
     if (action === "keep") {
@@ -442,12 +472,12 @@ export default function FishingGame() {
         ny: spot.y,
       };
     }
-  }, []);
+  }, [showMessage]);
 
-  // 小朋友沒選的話，過一陣子自動收下，遊戲不會卡住
+  // 小朋友沒選的話，過一陣子自動收下（寶箱自動打開），遊戲不會卡住
   useEffect(() => {
     if (!choice) return;
-    const id = setTimeout(() => decide("keep"), AUTO_KEEP_MS);
+    const id = setTimeout(() => decide(choice === "treasure" ? "open" : "keep"), AUTO_KEEP_MS);
     return () => clearTimeout(id);
   }, [choice, decide]);
 
@@ -550,18 +580,22 @@ export default function FishingGame() {
         say = `撿到${type.label}`;
         audioManager.bubble();
       } else {
-        msg = `釣到${type.label}了！${type.emoji}`;
+        msg = `釣到${type.label}了！`;
         say = `是${type.label}！`;
         audioManager.success();
 
         const upd = recordCatch(getDexSnapshot(), type.kind);
         updateDex(upd.dex);
         if (upd.isNew) {
-          msg = `新發現！${type.label} ${type.emoji} 放進圖鑑了`;
+          msg = `新發現！${type.label}放進圖鑑了`;
           setDexBounce((n) => n + 1);
           audioManager.chime();
         }
-        if (type.isRare) {
+        if (type.kind === "treasure") {
+          msg = "撿到寶箱！打開看看裡面有什麼 🔓";
+          say = "哇！是寶箱！";
+          effectsRef.current.push(...confetti(g.w, 70));
+        } else if (type.isRare) {
           msg = `哇！稀有的${type.label}！🌟`;
           say = `哇！是${type.label}！`;
           effectsRef.current.push(...confetti(g.w, 70));
@@ -591,7 +625,8 @@ export default function FishingGame() {
               const next = createTask(
                 swimmersRef.current.map((s) => s.kind),
                 Math.random,
-                nt.target
+                nt.target,
+                sceneRef.current.fish
               );
               updateTask(next);
               setTaskBounce((n) => n + 1);
@@ -602,9 +637,11 @@ export default function FishingGame() {
         }
       }
 
-      showMessage(msg, 2400);
+      showMessage(msg, 2400, type.kind);
       audioManager.speak(say);
     };
+
+    announceRef.current = announceCatch;
 
     const finishCatch = (g: Geometry) => {
       const caught = hookedRef.current;
@@ -612,8 +649,10 @@ export default function FishingGame() {
       attractedRef.current = null;
       if (caught) {
         swimmersRef.current = swimmersRef.current.filter((s) => s.id !== caught.id);
-        // 補一隻隨機種類，從池邊游進來（任務要的魚比較容易出現）
-        swimmersRef.current.push(spawnFromEdge(pickRandomKind(Math.random, taskFavor(taskRef.current))));
+        // 補一隻這種天氣的魚，從池邊游進來（任務要的魚比較容易出現）
+        swimmersRef.current.push(
+          spawnFromEdge(pickRandomKind(Math.random, taskFavor(taskRef.current), sceneRef.current.fish))
+        );
         const type = getCatchType(caught.kind);
         if (type.isJunk) {
           updateJunkPile([...junkPileRef.current, { id: junkIdRef.current++, kind: type.kind }]);
@@ -621,7 +660,7 @@ export default function FishingGame() {
         } else {
           setBucket((prev) => [...prev, type.kind]);
           audioManager.pop();
-          showMessage(`${type.emoji} 放進水桶囉`, 1400);
+          showMessage("放進水桶囉", 1400, type.kind);
         }
       }
       turnsRef.current = 0;
@@ -698,7 +737,7 @@ export default function FishingGame() {
       spawnTimerRef.current -= dt;
       if (spawnTimerRef.current <= 0) {
         spawnTimerRef.current = nextSpawnDelay();
-        tickPopulation(free, Math.random, taskFavor(taskRef.current));
+        tickPopulation(free, Math.random, taskFavor(taskRef.current), sceneRef.current.fish);
         for (const s of free) {
           if (!swimmersRef.current.includes(s)) swimmersRef.current.push(s);
         }
@@ -846,10 +885,10 @@ export default function FishingGame() {
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(Math.sin(s.jumpT * Math.PI) * (flip ? 0.6 : -0.6));
-          drawEmoji(ctx, type.emoji, 0, 0, type.size, flip, type.glow);
+          drawCatch(ctx, type.kind, 0, 0, type.size, flip, type.glow);
           ctx.restore();
         } else {
-          drawEmoji(ctx, type.emoji, x, y, type.size, flip, type.glow);
+          drawCatch(ctx, type.kind, x, y, type.size, flip, type.glow);
         }
       }
       drawEffects(ctx, effectsRef.current.filter(inWater));
@@ -922,20 +961,20 @@ export default function FishingGame() {
           const x = (1 - ease) * (1 - ease) * fx + 2 * (1 - ease) * ease * cx + ease * ease * l.tx;
           const y = (1 - ease) * (1 - ease) * fy + 2 * (1 - ease) * ease * cy + ease * ease * l.ty;
           const shrink = l.stage === "toPond" ? 0.15 : 0.4;
-          drawEmoji(ctx, type.emoji, x, y, size * (1 - ease * shrink), false, type.glow);
+          drawCatch(ctx, type.kind, x, y, size * (1 - ease * shrink), false, type.glow);
         } else if (p === "landing" && l.stage === "show") {
           // 掛在竿尖扭來扭去，放大一點讓小朋友看清楚
           ctx.save();
           ctx.translate(hx, hy + 20);
           ctx.rotate(Math.sin(time * 6) * 0.25);
-          drawEmoji(ctx, type.emoji, 0, 0, size * 1.3, false, type.glow);
+          drawCatch(ctx, type.kind, 0, 0, size * 1.3, false, type.glow);
           ctx.restore();
         } else if (p === "landing") {
-          drawEmoji(ctx, type.emoji, hx, hy + 14, size, false, type.glow);
+          drawCatch(ctx, type.kind, hx, hy + 14, size, false, type.glow);
         } else {
           const x = pond.x + hooked.x * pond.w;
           const y = pond.y + hooked.y * pond.h;
-          drawEmoji(ctx, type.emoji, x, y + 10, size, false, type.glow);
+          drawCatch(ctx, type.kind, x, y + 10, size, false, type.glow);
         }
       }
 
@@ -975,8 +1014,28 @@ export default function FishingGame() {
 
   const changeScene = () => {
     const next = getScene(nextScene(sceneId));
+    sceneRef.current = next;
     setSceneId(next.id);
     audioManager.chime();
+    // 不屬於這種天氣的魚游走，換一批這種天氣的魚游進來（正在咬餌、上鉤的那隻不動）
+    const busy = [hookedRef.current, attractedRef.current];
+    const leaving = shooAway(
+      swimmersRef.current.filter((sw) => !busy.includes(sw)),
+      next.fish
+    );
+    for (let i = 0; i < Math.min(leaving, 4); i++) {
+      swimmersRef.current.push(spawnFromEdge(pickRandomKind(Math.random, undefined, next.fish)));
+    }
+    // 任務要的魚這種天氣不會出現，就換一個做得到的任務
+    const t = taskRef.current;
+    if (t && !isTaskDone(t) && !taskPossible(t, next.fish)) {
+      const nt = createTask(swimmersRef.current.map((sw) => sw.kind), Math.random, t.target, next.fish);
+      updateTask(nt);
+      setTaskBounce((n) => n + 1);
+      showMessage(`${next.emoji} 變成${next.label}了！新任務：${taskText(nt)}`, 2600);
+      audioManager.speak(`${next.label}。新任務，${taskText(nt)}`);
+      return;
+    }
     showMessage(`${next.emoji} 變成${next.label}了`, 1600);
     audioManager.speak(next.label);
   };
@@ -995,10 +1054,11 @@ export default function FishingGame() {
       {message && (
         <div className="fixed top-[92px] left-0 right-0 z-30 flex justify-center pointer-events-none px-6">
           <div
-            key={message}
-            className="bg-white/90 backdrop-blur rounded-2xl px-4 py-2 shadow-md text-lg font-black text-[#FF69B4] animate-bounce-in text-center"
+            key={message.text}
+            className="bg-white/90 backdrop-blur rounded-2xl px-4 py-2 shadow-md text-lg font-black text-[#FF69B4] animate-bounce-in text-center flex items-center gap-1.5"
           >
-            {message}
+            {message.icon && <CatchIcon kind={message.icon} size={32} />}
+            {message.text}
           </div>
         </div>
       )}
@@ -1041,7 +1101,7 @@ export default function FishingGame() {
                 className="text-2xl leading-none"
                 style={i < task.got ? undefined : { filter: "grayscale(1)", opacity: 0.3 }}
               >
-                {taskEmoji(task.target)}
+                {task.target === "junk" ? "🗑️" : <CatchIcon kind={task.target} size={28} />}
               </span>
             ))}
           </div>
@@ -1077,7 +1137,7 @@ export default function FishingGame() {
         <div className="mt-1 flex flex-wrap justify-center gap-0.5 max-w-28 min-h-6">
           {bucket.slice(-8).map((k, i) => (
             <span key={`${k}-${i}`} className="text-base leading-none">
-              {getCatchType(k).emoji}
+              <CatchIcon kind={k} size={20} />
             </span>
           ))}
         </div>
@@ -1118,7 +1178,7 @@ export default function FishingGame() {
               onPointerMove={(e) => onJunkMove(e, item)}
               onPointerUp={(e) => onJunkUp(e, item)}
               onPointerCancel={() => setDrag(null)}
-              className={`fixed text-5xl leading-none select-none ${
+              className={`fixed leading-none select-none ${
                 dragging ? "z-40 scale-125" : "z-[15] transition-[left,top] duration-200"
               }`}
               style={{
@@ -1128,7 +1188,7 @@ export default function FishingGame() {
                 touchAction: "none",
               }}
             >
-              {getCatchType(item.kind).emoji}
+              <CatchIcon kind={item.kind} size={56} />
             </button>
           );
         })}
@@ -1180,28 +1240,43 @@ export default function FishingGame() {
         <div className="fixed left-0 right-0 bottom-[184px] z-30 flex justify-center px-4 pointer-events-none">
           <div className="pointer-events-auto bg-white/90 backdrop-blur rounded-3xl shadow-xl px-4 py-3 flex flex-col items-center animate-bounce-in">
             <div className="text-base font-black text-[#0288D1] mb-2">
-              {getCatchType(choice).emoji} 要留下{getCatchType(choice).label}嗎？
+              <CatchIcon kind={choice} size={30} className="align-middle mr-1" />
+              {choice === "treasure" ? "撿到寶箱！裡面有什麼呢？" : `要留下${getCatchType(choice).label}嗎？`}
             </div>
-            <div className="flex gap-3">
+            {choice === "treasure" ? (
               <button
                 type="button"
-                onClick={() => decide("keep")}
-                className="relative overflow-hidden w-28 h-16 rounded-2xl bg-[#81C784] text-white font-black text-lg shadow active:scale-95 transition-transform select-none"
+                onClick={() => decide("open")}
+                className="relative overflow-hidden w-56 h-16 rounded-2xl bg-[#FFB300] text-white font-black text-xl shadow active:scale-95 transition-transform select-none"
               >
-                🪣 收下
+                🔓 打開寶箱
                 <span
                   className="absolute left-0 bottom-0 h-1.5 w-full bg-white/70 origin-left animate-auto-keep"
                   style={{ animationDuration: `${AUTO_KEEP_MS}ms` }}
                 />
               </button>
-              <button
-                type="button"
-                onClick={() => decide("throw")}
-                className="w-28 h-16 rounded-2xl bg-[#4FC3F7] text-white font-black text-lg shadow active:scale-95 transition-transform select-none"
-              >
-                🌊 丟回去
-              </button>
-            </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => decide("keep")}
+                  className="relative overflow-hidden w-28 h-16 rounded-2xl bg-[#81C784] text-white font-black text-lg shadow active:scale-95 transition-transform select-none"
+                >
+                  🪣 收下
+                  <span
+                    className="absolute left-0 bottom-0 h-1.5 w-full bg-white/70 origin-left animate-auto-keep"
+                    style={{ animationDuration: `${AUTO_KEEP_MS}ms` }}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => decide("throw")}
+                  className="w-28 h-16 rounded-2xl bg-[#4FC3F7] text-white font-black text-lg shadow active:scale-95 transition-transform select-none"
+                >
+                  🌊 丟回去
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

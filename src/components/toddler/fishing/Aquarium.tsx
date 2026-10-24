@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { audioManager } from "@/lib/audio/AudioManager";
 import { getCatchType, type CatchKind } from "@/lib/fishing/fishingLogic";
+import { CatchIcon } from "./CatchIcon";
 
 interface AquariumProps {
   fish: CatchKind[];
@@ -57,7 +58,7 @@ export default function Aquarium({ fish, onClose }: AquariumProps) {
       {/* 魚 */}
       {shown.map((kind, i) => {
         const type = getCatchType(kind);
-        const bottomDweller = kind === "crab" || kind === "treasure";
+        const bottomDweller = kind === "crab" || kind === "lobster" || kind === "treasure";
         const top = bottomDweller ? 72 + hash(i) * 8 : 14 + hash(i) * 52;
         return (
           <div
@@ -83,12 +84,9 @@ export default function Aquarium({ fish, onClose }: AquariumProps) {
                 }}
                 onAnimationEnd={() => setJumping((j) => (j === i ? null : j))}
                 className={`leading-none select-none ${jumping === i ? "animate-fish-jump" : ""}`}
-                style={{
-                  fontSize: Math.min(90, type.size * 1.3),
-                  filter: type.glow ? `drop-shadow(0 0 10px ${type.glow})` : undefined,
-                }}
+                style={{ filter: type.glow ? `drop-shadow(0 0 10px ${type.glow})` : undefined }}
               >
-                {type.emoji}
+                <CatchIcon kind={type.kind} size={Math.min(100, type.size * 1.5)} />
               </button>
             </div>
           </div>

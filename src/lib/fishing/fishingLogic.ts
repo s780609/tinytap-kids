@@ -10,6 +10,12 @@ export type CatchKind =
   | "turtle"
   | "octopus"
   | "crab"
+  | "frog"
+  | "shrimp"
+  | "squid"
+  | "lobster"
+  | "penguin"
+  | "seal"
   | "goldfish"
   | "whale"
   | "mermaid"
@@ -79,6 +85,12 @@ export const CATCH_TYPES: CatchType[] = [
   { kind: "turtle", label: "烏龜", emoji: "🐢", size: 46, speed: 0.08, minDepth: 0.1, maxDepth: 0.9, isJunk: false, weight: 2, reelTurns: 2, unit: "隻" },
   { kind: "octopus", label: "章魚", emoji: "🐙", size: 48, speed: 0.12, minDepth: 0.4, maxDepth: 0.9, isJunk: false, weight: 2, reelTurns: 3, reaction: "ink", unit: "隻" },
   { kind: "crab", label: "螃蟹", emoji: "🦀", size: 42, speed: 0.1, minDepth: 0.7, maxDepth: 0.95, isJunk: false, weight: 3, reelTurns: 2, unit: "隻" },
+  { kind: "frog", label: "青蛙", emoji: "🐸", size: 40, speed: 0.14, minDepth: 0.05, maxDepth: 0.55, isJunk: false, weight: 3, reelTurns: 2, unit: "隻" },
+  { kind: "shrimp", label: "蝦子", emoji: "🦐", size: 36, speed: 0.18, minDepth: 0.4, maxDepth: 0.95, isJunk: false, weight: 3, reelTurns: 2, unit: "隻" },
+  { kind: "squid", label: "魷魚", emoji: "🦑", size: 46, speed: 0.16, minDepth: 0.2, maxDepth: 0.8, isJunk: false, weight: 3, reelTurns: 3, reaction: "ink", unit: "隻" },
+  { kind: "lobster", label: "龍蝦", emoji: "🦞", size: 46, speed: 0.08, minDepth: 0.75, maxDepth: 0.95, isJunk: false, weight: 2, reelTurns: 3, unit: "隻" },
+  { kind: "penguin", label: "企鵝", emoji: "🐧", size: 46, speed: 0.24, minDepth: 0.05, maxDepth: 0.6, isJunk: false, weight: 3, reelTurns: 3, unit: "隻" },
+  { kind: "seal", label: "海豹", emoji: "🦭", size: 54, speed: 0.16, minDepth: 0.1, maxDepth: 0.7, isJunk: false, weight: 2, reelTurns: 4, reaction: "strong", unit: "隻" },
   { kind: "goldfish", label: "金色小魚", emoji: "🐟", size: 46, speed: 0.26, minDepth: 0.1, maxDepth: 0.8, isJunk: false, isRare: true, weight: 0.5, reelTurns: 3, unit: "條", glow: "#FFD54F" },
   { kind: "whale", label: "鯨魚", emoji: "🐳", size: 76, speed: 0.1, minDepth: 0.2, maxDepth: 0.7, isJunk: false, isRare: true, weight: 0.4, reelTurns: 5, reaction: "strong", unit: "隻" },
   { kind: "mermaid", label: "美人魚", emoji: "🧜‍♀️", size: 54, speed: 0.15, minDepth: 0.15, maxDepth: 0.8, isJunk: false, isRare: true, weight: 0.3, reelTurns: 3, unit: "條" },
@@ -97,12 +109,22 @@ let nextId = 1;
 /** 偏好的種類（例如任務要釣的魚）權重變成幾倍 */
 export const FAVOR_MULTIPLIER = 3;
 
-/** 依權重隨機抽一種；favor 符合的種類權重加倍，任務要的魚比較容易出現 */
+/** 這種魚在這個池塘會不會出現：allowed 是場景的一般魚清單，稀有獵物與垃圾到處都有 */
+export function isAllowed(type: CatchType, allowed?: readonly CatchKind[]): boolean {
+  return !allowed || type.isJunk || !!type.isRare || allowed.includes(type.kind);
+}
+
+/**
+ * 依權重隨機抽一種；favor 符合的種類權重加倍，任務要的魚比較容易出現。
+ * allowed 給了就只抽場景裡會出現的一般魚（見 scenes.ts）。
+ */
 export function pickRandomKind(
   rand: () => number = Math.random,
-  favor?: (type: CatchType) => boolean
+  favor?: (type: CatchType) => boolean,
+  allowed?: readonly CatchKind[]
 ): CatchKind {
-  const weightOf = (c: CatchType) => (favor?.(c) ? c.weight * FAVOR_MULTIPLIER : c.weight);
+  const weightOf = (c: CatchType) =>
+    !isAllowed(c, allowed) ? 0 : favor?.(c) ? c.weight * FAVOR_MULTIPLIER : c.weight;
   const total = CATCH_TYPES.reduce((s, c) => s + weightOf(c), 0);
   let r = rand() * total;
   for (const c of CATCH_TYPES) {
@@ -110,6 +132,23 @@ export function pickRandomKind(
     if (r < 0) return c.kind;
   }
   return CATCH_TYPES[CATCH_TYPES.length - 1].kind;
+}
+
+/**
+ * 打開寶箱：裡面是隨機一樣東西。大多是一般的魚（不分天氣），偶爾是稀有獵物，也可能是垃圾。
+ * 不會又是寶箱。
+ */
+export const TREASURE_ODDS = { fish: 0.65, rare: 0.1, junk: 0.25 };
+
+export function treasureContents(rand: () => number = Math.random): CatchKind {
+  const r = rand();
+  const pool =
+    r < TREASURE_ODDS.fish
+      ? CATCH_TYPES.filter((c) => !c.isJunk && !c.isRare)
+      : r < TREASURE_ODDS.fish + TREASURE_ODDS.rare
+        ? CATCH_TYPES.filter((c) => c.isRare && c.kind !== "treasure")
+        : CATCH_TYPES.filter((c) => c.isJunk);
+  return pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))].kind;
 }
 
 export function createSwimmer(kind: CatchKind, rand: () => number = Math.random): Swimmer {
@@ -129,13 +168,18 @@ export function createSwimmer(kind: CatchKind, rand: () => number = Math.random)
 }
 
 /**
- * 建立 count 隻：保證至少一個垃圾、一隻螃蟹，其餘依權重隨機，
+ * 建立 count 隻：保證至少一個垃圾、一隻一般魚（沒給 allowed 時是螃蟹），其餘依權重隨機，
  * 所以每次進來的組合和深度都不一樣。
  */
-export function createSwimmers(count: number, rand: () => number = Math.random): Swimmer[] {
+export function createSwimmers(
+  count: number,
+  rand: () => number = Math.random,
+  allowed?: readonly CatchKind[]
+): Swimmer[] {
   const junk = CATCH_TYPES.filter((c) => c.isJunk);
-  const kinds: CatchKind[] = [junk[Math.min(junk.length - 1, Math.floor(rand() * junk.length))].kind, "crab"];
-  while (kinds.length < count) kinds.push(pickRandomKind(rand));
+  const sure = allowed ? allowed[Math.min(allowed.length - 1, Math.floor(rand() * allowed.length))] : "crab";
+  const kinds: CatchKind[] = [junk[Math.min(junk.length - 1, Math.floor(rand() * junk.length))].kind, sure];
+  while (kinds.length < count) kinds.push(pickRandomKind(rand, undefined, allowed));
   // 洗牌，避免固定順序
   for (let i = kinds.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -160,10 +204,11 @@ export function spawnFromEdge(kind: CatchKind, rand: () => number = Math.random)
 export function tickPopulation(
   swimmers: Swimmer[],
   rand: () => number = Math.random,
-  favor?: (type: CatchType) => boolean
+  favor?: (type: CatchType) => boolean,
+  allowed?: readonly CatchKind[]
 ): void {
   if (swimmers.length < MAX_SWIMMERS) {
-    swimmers.push(spawnFromEdge(pickRandomKind(rand, favor), rand));
+    swimmers.push(spawnFromEdge(pickRandomKind(rand, favor, allowed), rand));
     return;
   }
   const staying = swimmers.filter((s) => !s.leaving);
@@ -171,6 +216,18 @@ export function tickPopulation(
   const pick = staying[Math.min(staying.length - 1, Math.floor(rand() * staying.length))];
   pick.leaving = true;
   pick.dir = pick.x < 0.5 ? -1 : 1;
+}
+
+/** 換天氣：不屬於新場景的一般魚游出池塘，回傳有幾隻要走（呼叫端可以補新的進來） */
+export function shooAway(swimmers: Swimmer[], allowed: readonly CatchKind[]): number {
+  let n = 0;
+  for (const s of swimmers) {
+    if (s.leaving || isAllowed(getCatchType(s.kind), allowed)) continue;
+    s.leaving = true;
+    s.dir = s.x < 0.5 ? -1 : 1;
+    n++;
+  }
+  return n;
 }
 
 /** 移除已經游出池塘的 */

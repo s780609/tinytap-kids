@@ -2,6 +2,8 @@
 
 import { DEX_TYPES, dexCount, isDexComplete, type FishDex } from "@/lib/fishing/fishDex";
 import type { CatchType } from "@/lib/fishing/fishingLogic";
+import { scenesWith } from "@/lib/fishing/scenes";
+import { CatchIcon } from "./CatchIcon";
 
 interface FishDexDialogProps {
   dex: FishDex;
@@ -57,16 +59,23 @@ export default function FishDexDialog({ dex, onPick, onClose }: FishDexDialogPro
                     ⭐
                   </span>
                 )}
-                <span
-                  className="text-4xl leading-none h-12 flex items-center"
-                  style={found ? undefined : { filter: "brightness(0)", opacity: 0.18 }}
-                >
-                  {type.emoji}
+                <span className="h-14 flex items-center">
+                  <CatchIcon
+                    kind={type.kind}
+                    size={52}
+                    style={found ? undefined : { filter: "brightness(0)", opacity: 0.18 }}
+                  />
                 </span>
                 <span className={`text-sm font-black ${found ? "text-gray-700" : "text-gray-300"}`}>
                   {found ? type.label : "？？？"}
                 </span>
                 <span className="text-xs font-bold text-[#FFB74D] h-4">{found ? `× ${n}` : ""}</span>
+                {/* 在哪種天氣出現（稀有的到處都可能遇到） */}
+                <span className="text-xs leading-tight min-h-4 text-center" aria-label="出現的天氣">
+                  {scenesWith(type.kind)
+                    .map((sc) => sc.emoji)
+                    .join("")}
+                </span>
               </button>
             );
           })}

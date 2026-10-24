@@ -63,7 +63,8 @@ test("createSwimmers 不同亂數會產生不同的魚種組合與深度", () =>
 });
 
 test("魚的深度範圍互相重疊，不是固定一層一種", () => {
-  const fish = CATCH_TYPES.filter((c) => !c.isJunk && !c.isRare && c.kind !== "crab");
+  // 螃蟹、龍蝦是在池底爬的，不算
+  const fish = CATCH_TYPES.filter((c) => !c.isJunk && !c.isRare && c.kind !== "crab" && c.kind !== "lobster");
   for (const c of fish) {
     assert.ok(c.maxDepth - c.minDepth >= 0.5, `${c.kind} 深度範圍太窄`);
   }
