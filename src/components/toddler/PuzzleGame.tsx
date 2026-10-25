@@ -50,8 +50,11 @@ interface Drag {
   y: number;
 }
 
-export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
+/** 好幾種主題（恐龍、魚…）放在同一個拼圖遊戲裡，選單上方切換 */
+export default function PuzzleGame({ themes }: { themes: PuzzleTheme[] }) {
   const { settings } = useSettings();
+  const [themeIdx, setThemeIdx] = useState(0);
+  const theme = themes[themeIdx];
   const areaRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ParticleEngine | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -183,8 +186,28 @@ export default function PuzzleGame({ theme }: { theme: PuzzleTheme }) {
     return (
       <div className="flex flex-col items-center h-screen overflow-y-auto p-6 pt-20 pb-10 gap-4 select-none">
         <h1 className="text-3xl md:text-4xl font-black animate-bounce-in" style={{ color: theme.accent }}>
-          {theme.title}
+          {themes.length > 1 ? "🧩 拼圖" : theme.title}
         </h1>
+
+        {themes.length > 1 && (
+          <div className="flex flex-wrap justify-center gap-2 rounded-full bg-white/70 p-1.5 shadow">
+            {themes.map((t, i) => (
+              <button
+                key={t.title}
+                type="button"
+                aria-pressed={i === themeIdx}
+                onClick={() => {
+                  audioManager.pop();
+                  setThemeIdx(i);
+                }}
+                className="px-5 py-2 rounded-full text-lg font-black active:scale-95 transition"
+                style={i === themeIdx ? { backgroundColor: t.accent, color: "white" } : { color: t.accentText }}
+              >
+                {t.title}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap justify-center gap-2">
           {LEVELS.map((lv, i) => (
