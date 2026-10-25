@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
 import { HIDERS, pickHider } from "@/lib/peekaboo/peekaboo";
+import { HiderArt, callHider } from "./HiderArt";
 import { clearedRatio, createGrid, wipeLine, type WipeGrid } from "@/lib/wipe/wipeGrid";
 
 /** 手指擦的粗細（半徑，CSS px） */
@@ -120,7 +121,7 @@ export default function WipeGame() {
     doneRef.current = true;
     setDone(true);
     audioManager.success();
-    timersRef.current.push(setTimeout(() => audioManager.playFile(HIDERS[pic].sound), 350));
+    timersRef.current.push(setTimeout(() => callHider(HIDERS[pic]), 350));
     timersRef.current.push(
       setTimeout(() => {
         // 先讓霧淡入蓋住，再換下一張圖，小朋友不會先看到答案
@@ -189,13 +190,13 @@ export default function WipeGame() {
           <span className="absolute bottom-[14%] right-[10%] text-5xl">{sc.deco[2]}</span>
           <span
             key={`${pic}-${done}`}
-            className={`text-[11rem] leading-none ${done ? "animate-bounce-in" : ""}`}
+            className={`leading-none ${done ? "animate-bounce-in" : ""}`}
           >
-            {animal.emoji}
+            <HiderArt hider={animal} size={190} />
           </span>
           {done && (
             <span className="absolute top-[12%] px-5 py-1 rounded-full bg-white/90 text-3xl font-black text-[#FF7043] shadow animate-bounce-in">
-              {animal.name}！🎉
+              {animal.label}！🎉
             </span>
           )}
         </div>
