@@ -404,3 +404,113 @@ body {
 .animate-auto-keep {
   animation: auto-keep 6s linear forwards;
 }
+
+/* 小小廚房：左右各一排配料、下面一排配料，中間是料理 */
+.kitchen-layout {
+  --side: clamp(64px, 11vw, 100px);
+  --btn: min(calc(var(--side) - 12px), calc((100dvh - 100px) / 4 - 8px));
+  height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  grid-template-areas:
+    ".    top    done"
+    "left food   right"
+    "left bottom right";
+  grid-template-columns: var(--side) minmax(0, 1fr) var(--side);
+  grid-template-rows: 68px minmax(0, 1fr) calc(var(--btn) + 14px);
+}
+
+.kitchen-left {
+  grid-area: left;
+  padding-bottom: 6px;
+}
+.kitchen-right {
+  grid-area: right;
+  padding-bottom: 6px;
+}
+.kitchen-top {
+  grid-area: top;
+}
+.kitchen-done {
+  grid-area: done;
+  padding: 12px 6px 0;
+}
+.kitchen-food {
+  grid-area: food;
+}
+.kitchen-bottom {
+  grid-area: bottom;
+}
+.kitchen-btn {
+  width: var(--btn);
+  height: var(--btn);
+  flex: none;
+}
+
+/* 配料放上去時從上面掉下來 */
+@keyframes kitchen-drop {
+  0% {
+    transform: translateY(-14px) scale(1.4);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(0) scale(0.9);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+.kitchen-drop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: kitchen-drop 0.35s ease-out;
+}
+
+@keyframes kitchen-flame {
+  from {
+    transform: scale(1, 1);
+  }
+  to {
+    transform: scale(0.85, 1.12);
+  }
+}
+.kitchen-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: kitchen-flame 0.35s ease-in-out infinite alternate;
+}
+
+/* 吹熄後冒一縷煙 */
+@keyframes kitchen-smoke {
+  from {
+    transform: translateY(0);
+    opacity: 0.9;
+  }
+  to {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+}
+.kitchen-smoke {
+  animation: kitchen-smoke 1.4s ease-out forwards;
+}
+
+/* 完成時料理跳一下 */
+@keyframes kitchen-yum {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  70% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1.03);
+  }
+}
+.kitchen-yum {
+  animation: kitchen-yum 0.7s ease-out forwards;
+}
