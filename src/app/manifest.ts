@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "專為幼兒設計的安全觸控遊戲 App",
     start_url: "/",
     display: "standalone",
-    orientation: "portrait",
+    orientation: "any",
     background_color: "#FFF0F5",
     theme_color: "#FF69B4",
     icons: [
