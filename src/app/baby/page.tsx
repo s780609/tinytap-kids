@@ -49,6 +49,14 @@ export default function BabyModePage() {
         </BigButton>
 
         <BigButton
+          color="#FF8A65"
+          onClick={() => router.push("/baby/hatch")}
+        >
+          <span className="text-4xl mb-1">🥚</span>
+          <span className="text-white">敲敲蛋</span>
+        </BigButton>
+
+        <BigButton
           color="#29B6F6"
           onClick={() => router.push("/baby/wipe")}
         >
