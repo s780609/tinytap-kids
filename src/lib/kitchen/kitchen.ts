@@ -178,36 +178,6 @@ export function clampToRegion(r: Region, x: number, y: number): { x: number; y: 
   return { x: r.cx + (x - r.cx) / d, y: r.cy + (y - r.cy) / d };
 }
 
-/** 橢圓裡均勻取一點 */
-function randomInRegion(r: Region, rand: () => number): { x: number; y: number } {
-  const a = rand() * Math.PI * 2;
-  const d = Math.sqrt(rand());
-  return { x: r.cx + Math.cos(a) * d * r.rx, y: r.cy + Math.sin(a) * d * r.ry };
-}
-
-/** 點一下配料：找一個離其他配料最遠的位置（試幾個隨機點挑最好的） */
-export function pickSpot(
-  r: Region,
-  existing: { x: number; y: number }[],
-  rand: () => number = Math.random,
-  tries = 12
-): { x: number; y: number } {
-  let best = randomInRegion(r, rand);
-  if (existing.length === 0) return best;
-  let bestDist = -1;
-  for (let i = 0; i < tries; i++) {
-    const p = i === 0 ? best : randomInRegion(r, rand);
-    // 橢圓扁，y 方向的距離放大回圓形再比
-    const k = r.rx / r.ry;
-    const dist = Math.min(...existing.map((e) => Math.hypot(e.x - p.x, (e.y - p.y) * k)));
-    if (dist > bestDist) {
-      bestDist = dist;
-      best = p;
-    }
-  }
-  return best;
-}
-
 export function candleCount(items: Placed[]): number {
   return items.filter((p) => TOPPINGS[p.topping].candle).length;
 }

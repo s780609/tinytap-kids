@@ -15,7 +15,6 @@ import {
   candleCount,
   clampToRegion,
   drawOrder,
-  pickSpot,
   type Dish,
   type Placed,
   type ToppingId,
@@ -77,10 +76,11 @@ export default function KitchenGame() {
   const [lit, setLit] = useState<number[]>([]);
   const [blown, setBlown] = useState<number[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
+  /** 選好的配料：點料理就放在點的地方（沒選就用左邊第一個） */
+  const [selected, setSelected] = useState<ToppingId | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const engineRef = useRef<ParticleEngine | null>(null);
   const keyRef = useRef(1);
-  const lastNameRef = useRef<ToppingId | null>(null);
   const songBusRef = useRef<GainNode | null>(null);
   const celebrateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -112,7 +112,7 @@ export default function KitchenGame() {
     setLit([]);
     setBlown([]);
     setDrag(null);
-    lastNameRef.current = null;
+    setSelected(null);
   }, [stopSong]);
 
   const openDish = (i: number) => {
@@ -136,10 +136,9 @@ export default function KitchenGame() {
     return { x: pt.x, y: pt.y };
   };
 
-  const place = (topping: ToppingId, at: { x: number; y: number } | null) => {
+  const place = (topping: ToppingId, spot: { x: number; y: number }) => {
     if (!dish || phase !== "cook") return;
     const info = TOPPINGS[topping];
-    const spot = at ?? pickSpot(dish.region, items);
     const next = addItem(items, {
       key: keyRef.current++,
       topping,
@@ -157,17 +156,24 @@ export default function KitchenGame() {
     if (info.sound === "bubble") audioManager.bubble();
     else if (info.sound === "sand") audioManager.sand();
     else audioManager.pop();
-    if (lastNameRef.current !== topping) {
-      lastNameRef.current = topping;
-      audioManager.speak(info.name);
-    }
   };
 
-  // ---------- 配料按鈕：點一下或拖曳 ----------
+  /** 點料理：把選好的配料放在點的地方 */
+  const onFoodDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!dish || phase !== "cook") return;
+    const p = toFood(e.clientX, e.clientY);
+    if (!p || !acceptsDrop(dish.region, p.x, p.y)) return;
+    place(selected ?? dish.left[0], clampToRegion(dish.region, p.x, p.y));
+  };
+
+  // ---------- 配料按鈕：點一下選起來，或直接拖到料理上 ----------
 
   const onTrayDown = (topping: ToppingId) => (e: React.PointerEvent<HTMLButtonElement>) => {
     if (phase !== "cook") return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    audioManager.pop();
+    audioManager.speak(TOPPINGS[topping].name);
+    setSelected(topping);
     // 每單位幾 px：放到料理上多大，拖的時候就多大
     const unit = svgRef.current?.getScreenCTM()?.a ?? 1.5;
     setDrag({
@@ -191,10 +197,7 @@ export default function KitchenGame() {
   const onTrayUp = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!drag || drag.pointerId !== e.pointerId || !dish) return;
     setDrag(null);
-    if (!drag.moved) {
-      place(drag.topping, null);
-      return;
-    }
+    if (!drag.moved) return;
     const p = toFood(e.clientX, e.clientY - LIFT);
     if (p && acceptsDrop(dish.region, p.x, p.y)) place(drag.topping, clampToRegion(dish.region, p.x, p.y));
   };
@@ -300,7 +303,7 @@ export default function KitchenGame() {
       onPointerCancel={() => setDrag(null)}
       onContextMenu={(e) => e.preventDefault()}
       className={`kitchen-btn flex items-center justify-center rounded-2xl bg-white shadow-md active:scale-90 transition-transform ${
-        drag?.topping === id ? "ring-4 ring-[#FFB74D]" : ""
+        (selected ?? dish.left[0]) === id ? "ring-4 ring-[#FF7043] scale-105" : ""
       }`}
       style={{ touchAction: "none" }}
     >
@@ -344,6 +347,7 @@ export default function KitchenGame() {
           viewBox={DISH_VIEWBOX[dish.id]}
           className={`absolute inset-0 w-full h-full ${phase === "done" ? "kitchen-yum" : ""}`}
           style={{ touchAction: "none" }}
+          onPointerDown={onFoodDown}
         >
           <DishBase id={dish.id} />
           {drawOrder(items).map((p) => (
@@ -359,7 +363,7 @@ export default function KitchenGame() {
         {cooking && items.length === 0 && (
           <div className="absolute inset-x-0 bottom-1 flex justify-center pointer-events-none">
             <span className="px-3 py-1 rounded-full bg-white/90 text-sm font-bold text-[#8D6E63] shadow animate-bounce-in">
-              點一下配料，或拖到{dish.title}上 👆
+              先點一個配料，再點{dish.title}放上去 👆
             </span>
           </div>
         )}

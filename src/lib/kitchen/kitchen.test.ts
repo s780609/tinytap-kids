@@ -11,20 +11,11 @@ import {
   candleCount,
   clampToRegion,
   drawOrder,
-  pickSpot,
 } from "./kitchen.ts";
 import type { Placed, Region, ToppingId } from "./kitchen.ts";
 import { parseMelody } from "../rhythm/music.ts";
 
 const R: Region = { cx: 100, cy: 100, rx: 60, ry: 20 };
-
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) % 4294967296;
-    return s / 4294967296;
-  };
-}
 
 function item(topping: ToppingId, key: number, y = 100): Placed {
   return { key, topping, x: 100, y, rot: 0, scale: 1 };
@@ -63,19 +54,6 @@ test("拉回橢圓：裡面的點不動、外面的點拉到邊上", () => {
   const p = clampToRegion(R, 200, 100);
   assert.ok(Math.abs(p.x - 160) < 1e-9 && p.y === 100);
   assert.ok(inside(R, clampToRegion(R, 150, 130)));
-});
-
-test("點一下：位置都在料理上，而且會避開已經放的配料", () => {
-  const rand = seeded(7);
-  const placed: { x: number; y: number }[] = [];
-  for (let i = 0; i < 30; i++) {
-    const p = pickSpot(R, placed, rand);
-    assert.ok(inside(R, p), `第 ${i} 個跑出去了`);
-    placed.push(p);
-  }
-  // 中心已經有一個，新的不該貼在旁邊
-  const p = pickSpot(R, [{ x: 100, y: 100 }], seeded(3));
-  assert.ok(Math.hypot(p.x - 100, (p.y - 100) * 3) > 20);
 });
 
 test("蠟燭最多 10 根", () => {
