@@ -31,24 +31,22 @@ function skyline(
 
 // ---------- 辦公室 ----------
 
-export function drawOffice(ctx: Ctx, t: number, opts: { overtime?: boolean } = {}) {
-  const { overtime = false } = opts;
+export function drawOffice(ctx: Ctx, t: number) {
   // 牆和地板
-  rect(ctx, overtime ? "#262b42" : "#c9c5b4", 0, 0, 180, 92);
-  rect(ctx, overtime ? "#1b1f33" : "#a9a593", 0, 88, 180, 4);
-  rect(ctx, overtime ? "#141728" : "#6c6f7a", 0, 92, 180, 58);
-  dither(ctx, overtime ? "#1b1f33" : "#60636e", 0, 92, 180, 18);
+  rect(ctx, "#c9c5b4", 0, 0, 180, 92);
+  rect(ctx, "#a9a593", 0, 88, 180, 4);
+  rect(ctx, "#6c6f7a", 0, 92, 180, 58);
+  dither(ctx, "#60636e", 0, 92, 180, 18);
 
   // 窗戶：外面是大樓
   rect(ctx, "#454a5c", 6, 10, 50, 44);
-  if (overtime) rect(ctx, "#0e1226", 8, 12, 46, 40);
-  else bands(ctx, ["#a8d4ea", "#bfe0ee", "#d4e9ee"], 8, 12, 46, 40);
+  bands(ctx, ["#a8d4ea", "#bfe0ee", "#d4e9ee"], 8, 12, 46, 40);
   skyline(
     ctx,
     [[8, 12, 24], [20, 10, 34], [30, 14, 18], [44, 10, 28]],
     52,
-    overtime ? "#1e2340" : "#8f9cab",
-    overtime ? "#ffe08a" : "#c6d6e0",
+    "#8f9cab",
+    "#c6d6e0",
     t
   );
   rect(ctx, "#454a5c", 31, 12, 1, 40);

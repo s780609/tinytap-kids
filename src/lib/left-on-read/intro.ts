@@ -1,57 +1,27 @@
 /**
- * 開場影片的時間表、字幕和憂傷的旋律。畫面在 components/original/pixel/introScenes.ts。
+ * 開場影片的時間表、文字和憂傷的旋律。畫面在 components/original/pixel/introScenes.ts。
  */
 
-export type IntroSceneId = "bus" | "taipei" | "mrt" | "office" | "store" | "room" | "phone" | "title";
+export type IntroSceneId = "office" | "commute" | "room" | "swipe" | "end";
 
 export interface IntroShot {
   id: IntroSceneId;
   durationMs: number;
-  caption: string;
+  /** 下一個分鏡接著這個畫面演，中間不淡出 */
+  continues?: boolean;
 }
 
 export const INTRO_SHOTS: readonly IntroShot[] = [
-  {
-    id: "bus",
-    durationMs: 6000,
-    caption: "嘉義的客運站。媽塞給我一袋橘子，叫我到台北要記得吃飯。",
-  },
-  {
-    id: "taipei",
-    durationMs: 5000,
-    caption: "台北的夜景很漂亮。只是每一盞燈，都是別人家的。",
-  },
-  {
-    id: "mrt",
-    durationMs: 5000,
-    caption: "捷運上每個人都離我很近。近到我知道他在滑什麼，不知道他叫什麼。",
-  },
-  {
-    id: "office",
-    durationMs: 5000,
-    caption: "二十五歲，小工程師。同事人都很好。下班說掰掰的時候最好。",
-  },
-  {
-    id: "store",
-    durationMs: 5000,
-    caption: "微波便當，兩分鐘。店員問我要不要袋子。今天終於有人問我問題了。",
-  },
-  {
-    id: "room",
-    durationMs: 5000,
-    caption: "租屋處六坪。橘子吃完了，袋子我還留著。不知道為什麼。",
-  },
-  {
-    id: "phone",
-    durationMs: 5000,
-    caption: "半夜一點，房間裡只剩手機的光。我下載了 Swipy。",
-  },
-  {
-    id: "title",
-    durationMs: 4000,
-    caption: "我以為這是愛情故事。其實是一本圖鑑。",
-  },
+  { id: "office", durationMs: 7000 },
+  { id: "commute", durationMs: 6000 },
+  { id: "room", durationMs: 7000, continues: true },
+  { id: "swipe", durationMs: 9000, continues: true },
+  { id: "end", durationMs: 6000 },
 ];
+
+export const INTRO_COMMUTE_TEXT = "北漂第 2 年";
+export const INTRO_TITLE = "已讀不回";
+export const INTRO_TAGLINE = "每天都在等一個回覆。";
 
 const TOTAL_MS = INTRO_SHOTS.reduce((sum, s) => sum + s.durationMs, 0);
 
@@ -69,8 +39,36 @@ export function introShotAt(tMs: number): { index: number; localMs: number; done
   return { index: 0, localMs: 0, done: false };
 }
 
+/** 辦公室的時鐘：盯著它從 17:58 走到 18:00 */
+export function introClock(localMs: number): string {
+  if (localMs < 2400) return "17:58";
+  if (localMs < 4200) return "17:59";
+  return "18:00";
+}
+
 export function typewriterCount(text: string, localMs: number, charsPerSec: number): number {
   return Math.min(text.length, Math.floor((localMs * charsPerSec) / 1000));
+}
+
+export type SwipeMood = "bored" | "hope" | "empty";
+
+export const SWIPE_BEAT_MS = 1500;
+/** 卡片最後這段時間飛出去 */
+const SWIPE_EXIT_MS = 350;
+export const SWIPE_BEATS: readonly { dir: "left" | "right"; mood: SwipeMood }[] = [
+  { dir: "left", mood: "bored" },
+  { dir: "left", mood: "bored" },
+  { dir: "right", mood: "hope" },
+  { dir: "left", mood: "hope" },
+  { dir: "left", mood: "empty" },
+  { dir: "left", mood: "empty" },
+];
+
+/** 這個時間點滑到第幾張；exit 是這張卡飛出去的進度（0～1） */
+export function swipeBeatAt(localMs: number): { index: number; exit: number } {
+  const index = Math.min(SWIPE_BEATS.length - 1, Math.floor(localMs / SWIPE_BEAT_MS));
+  const elapsed = localMs - index * SWIPE_BEAT_MS;
+  return { index, exit: Math.min(1, Math.max(0, (elapsed - (SWIPE_BEAT_MS - SWIPE_EXIT_MS)) / SWIPE_EXIT_MS)) };
 }
 
 /** 慢板的 A 小調：左手分解和弦，右手一段往下走又走不回去的旋律 */

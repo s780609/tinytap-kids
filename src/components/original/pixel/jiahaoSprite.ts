@@ -18,7 +18,7 @@ const COLLAR_DARK = "#59607a";
 const PANTS = "#3a3f54";
 const SHOE = "#20222c";
 
-export type JiahaoPose = "work" | "eat" | "phone" | "sleep" | "sigh" | "stand" | "sit";
+export type JiahaoPose = "work" | "eat" | "phone" | "sleep" | "sigh" | "sit";
 
 /** 16×16 的頭。look down 時眼鏡下移，screenGlow 會讓鏡片反光 */
 function head(ctx: Ctx, x: number, y: number, opts: { down?: boolean; lens?: string; closed?: boolean } = {}) {
@@ -160,20 +160,6 @@ export function drawJiahao(ctx: Ctx, x: number, y: number, pose: JiahaoPose, t =
       rect(ctx, TEE, x + 20, y + 20, 4, 9);
       rect(ctx, SKIN, x + 1, y + 29, 4, 3);
       rect(ctx, SKIN, x + 19, y + 29, 4, 3);
-      break;
-    }
-    case "stand": {
-      torso(ctx, x + 1, y + 15, 15);
-      head(ctx, x + 4, y);
-      rect(ctx, TEE, x, y + 20, 4, 8);
-      rect(ctx, TEE, x + 20, y + 20, 4, 8);
-      rect(ctx, SKIN, x, y + 28, 4, 2);
-      rect(ctx, SKIN, x + 20, y + 28, 4, 2);
-      rect(ctx, PANTS, x + 3, y + 30, 18, 6);
-      rect(ctx, PANTS, x + 3, y + 36, 8, 7);
-      rect(ctx, PANTS, x + 13, y + 36, 8, 7);
-      rect(ctx, SHOE, x + 2, y + 43, 9, 2);
-      rect(ctx, SHOE, x + 13, y + 43, 9, 2);
       break;
     }
   }
