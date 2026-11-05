@@ -24,7 +24,7 @@ export default function HomePage() {
     }
   }, [settings.defaultMode, router]);
 
-  const handleModeSelect = (mode: Exclude<AppSettings["defaultMode"], "ask">) => {
+  const handleModeSelect = (mode: Exclude<AppSettings["defaultMode"], "ask"> | "original") => {
     audioManager.init();
     audioManager.setVolume(settings.volume);
     audioManager.preloadAll();
@@ -41,7 +41,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center-safe h-screen p-6 gap-6 relative overflow-x-hidden overflow-y-auto">
+    <div className="flex flex-col items-center justify-center-safe h-screen p-6 pb-24 gap-6 relative overflow-x-hidden overflow-y-auto">
       {/* Background decorations */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[10%] left-[5%] w-16 h-16 rounded-full bg-[#FFD54F]/20 animate-bubble-float" />
@@ -86,6 +86,12 @@ export default function HomePage() {
           <span className="text-5xl mb-2">🕹️</span>
           <span>懷舊遊戲</span>
           <span className="text-base font-normal opacity-80">大小孩／大人</span>
+        </BigButton>
+
+        <BigButton color="#37474F" onClick={() => handleModeSelect("original")}>
+          <span className="text-5xl mb-2">📱</span>
+          <span>自創遊戲</span>
+          <span className="text-base font-normal opacity-80">大人向</span>
         </BigButton>
       </div>
 
