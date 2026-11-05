@@ -115,7 +115,7 @@ function incomingLine(incoming: Incoming, girl: Girl): TranscriptLine {
   }
 }
 
-/** 開場白，再來每步「她的內容、家豪選的回覆」；目前這一步要 ready 才顯示 */
+/** 開場白，再來每步「她的內容、冠宇選的回覆」；目前這一步要 ready 才顯示 */
 export function chatTranscript(chat: Chat, girl: Girl, dayIndex: number): TranscriptLine[] {
   const story = STORY_BY_ID[chat.storyId];
   const opener = openerOptions(girl).find((o) => o.kind === chat.opener);

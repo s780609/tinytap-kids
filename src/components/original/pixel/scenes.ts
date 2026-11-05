@@ -1,327 +1,109 @@
 /**
- * 遊戲中的場景，邏輯尺寸 180×150：辦公室、小吃店、租屋處。
+ * 遊戲中的場景，邏輯尺寸 180×150：都是插圖，再疊上一點小動畫。
  * 每個都有小動畫，t 是毫秒。
  */
 
-import { bands, blink, digits, digitsWidth, dither, glow, pixelText, rect, saw, type Ctx } from "./draw";
-import { drawJiahao } from "./jiahaoSprite";
+import { blink, digits, digitsWidth, glow, pixelText, rain, rect, saw, type Ctx } from "./draw";
 
 export const SCENE_W = 180;
 export const SCENE_H = 150;
 
-/** 一排窗戶亮暗不一的大樓 */
-function skyline(
-  ctx: Ctx,
-  buildings: readonly (readonly [number, number, number])[],
-  ground: number,
-  body: string,
-  windowOn: string,
-  t = 0
-) {
-  buildings.forEach(([x, w, h], n) => {
-    rect(ctx, body, x, ground - h, w, h);
-    for (let wy = ground - h + 3; wy < ground - 3; wy += 5) {
-      for (let wx = x + 2; wx < x + w - 2; wx += 4) {
-        const on = ((wx * 7 + wy * 13 + n) % 5 !== 0) !== (((wx + wy) % 11 === 0) && blink(t + wx * 37, 1700));
-        if (on && (wx * 3 + wy) % 3 !== 1) rect(ctx, windowOn, wx, wy, 2, 2);
-      }
-    }
-  });
+// ---------- 插圖場景：跟開場同一批圖，裁出橫向的一段 ----------
+
+const PHOTO_SRC = {
+  office: "/left-on-read/intro/office.jpg",
+  commute: "/left-on-read/intro/commute.jpg",
+  bed: "/left-on-read/intro/bed.jpg",
+  phone: "/left-on-read/intro/phone.jpg",
+  eatery: "/left-on-read/scene/eatery.jpg",
+  weekend: "/left-on-read/scene/weekend.jpg",
+} as const;
+type PhotoId = keyof typeof PHOTO_SRC;
+const PHOTO_SRC_W = 784;
+const photos = new Map<PhotoId, HTMLImageElement>();
+
+function photoOf(id: PhotoId): HTMLImageElement {
+  let img = photos.get(id);
+  if (!img) {
+    img = new Image();
+    img.src = PHOTO_SRC[id];
+    photos.set(id, img);
+  }
+  return img;
 }
 
-// ---------- 辦公室 ----------
-
-export function drawOffice(ctx: Ctx, t: number) {
-  // 牆和地板
-  rect(ctx, "#c9c5b4", 0, 0, 180, 92);
-  rect(ctx, "#a9a593", 0, 88, 180, 4);
-  rect(ctx, "#6c6f7a", 0, 92, 180, 58);
-  dither(ctx, "#60636e", 0, 92, 180, 18);
-
-  // 窗戶：外面是大樓
-  rect(ctx, "#454a5c", 6, 10, 50, 44);
-  bands(ctx, ["#a8d4ea", "#bfe0ee", "#d4e9ee"], 8, 12, 46, 40);
-  skyline(
-    ctx,
-    [[8, 12, 24], [20, 10, 34], [30, 14, 18], [44, 10, 28]],
-    52,
-    "#8f9cab",
-    "#c6d6e0",
-    t
-  );
-  rect(ctx, "#454a5c", 31, 12, 1, 40);
-  rect(ctx, "#454a5c", 8, 30, 46, 1);
-
-  // 日光燈會閃一下
-  const lit = saw(t, 4300) > 0.05;
-  rect(ctx, "#8d8a7c", 64, 4, 44, 3);
-  rect(ctx, lit ? "#ffffff" : "#b9b6a6", 66, 5, 40, 2);
-  rect(ctx, "#8d8a7c", 124, 4, 44, 3);
-  rect(ctx, "#f4f4e4", 126, 5, 40, 2);
-
-  // 白板和時鐘
-  rect(ctx, "#6f6d62", 68, 14, 46, 28);
-  rect(ctx, "#f4f4ee", 70, 16, 42, 24);
-  rect(ctx, "#d9534f", 73, 19, 18, 1);
-  rect(ctx, "#4a7fb5", 73, 23, 28, 1);
-  rect(ctx, "#4a7fb5", 73, 27, 12, 1);
-  rect(ctx, "#4a4a4a", 88, 30, 18, 6);
-  rect(ctx, "#f4f4ee", 89, 31, 16, 4);
-  rect(ctx, "#2a2a30", 124, 14, 14, 14);
-  rect(ctx, "#f4f4ee", 125, 15, 12, 12);
-  rect(ctx, "#2a2a30", 130, 17, 1, 5);
-  rect(ctx, "#2a2a30", 130, 21, 1 + Math.floor(saw(t, 8000) * 4), 1);
-
-  // 後排同事的背影和螢幕
-  for (const [cx, hue] of [[64, "#596d8c"], [146, "#7a6470"]] as const) {
-    rect(ctx, hue, cx, 56, 20, 22);
-    rect(ctx, "#2a2730", cx + 5, 46, 10, 11);
-    rect(ctx, "#3a3a48", cx - 4, 66, 28, 12);
-    rect(ctx, "#b8dcea", cx - 2, 68, 24, 8);
-  }
-  rect(ctx, "#6e6a60", 50, 78, 130, 2);
-
-  // 桌子
-  rect(ctx, "#8d6f50", 0, 110, 180, 40);
-  rect(ctx, "#a4835f", 0, 110, 180, 3);
-  rect(ctx, "#6d5238", 0, 142, 180, 8);
-
-  // 家豪和他的椅背
-  rect(ctx, "#31313e", 68, 66, 36, 44);
-  drawJiahao(ctx, 74, 64, "work", t);
-
-  // 正面看得到的那台螢幕：程式碼會往上捲，游標會閃
-  rect(ctx, "#232333", 116, 74, 50, 34);
-  rect(ctx, "#0e1420", 118, 76, 46, 28);
-  const scroll = Math.floor(t / 420);
-  for (let i = 0; i < 6; i++) {
-    const n = (i + scroll) * 7;
-    const indent = n % 3 === 0 ? 2 : n % 3 === 1 ? 6 : 10;
-    const len = 10 + (n * 13) % 24;
-    rect(ctx, n % 4 === 0 ? "#f26d6d" : n % 4 === 1 ? "#7fd98f" : "#8bc8f0", 119 + indent, 78 + i * 4, len, 1);
-  }
-  if (blink(t, 400)) rect(ctx, "#ffffff", 150, 98, 3, 2);
-  dither(ctx, "#8bc8f022", 118, 76, 46, 28, Math.floor(t / 90));
-  rect(ctx, "#ffe680", 118, 76, 8, 7); // 便利貼
-  rect(ctx, "#bda94e", 119, 78, 6, 1);
-  rect(ctx, "#232333", 137, 108, 8, 3);
-  rect(ctx, "#2f2f40", 130, 110, 22, 2);
-
-  // 馬克杯和蒸氣、快枯掉的盆栽、文件
-  rect(ctx, "#e9e4d8", 18, 104, 12, 12);
-  rect(ctx, "#cfc8b8", 30, 106, 3, 7);
-  rect(ctx, "#3a2a20", 19, 105, 10, 2);
-  if (saw(t, 1400) < 0.7) rect(ctx, "#ffffff88", 22 + (blink(t, 700) ? 1 : 0), 100 - saw(t, 1400) * 8, 1, 3);
-  rect(ctx, "#a4603a", 42, 106, 12, 10);
-  rect(ctx, "#6a7a3a", 45, 98, 2, 8);
-  rect(ctx, "#8a7a3a", 49, 100, 1, 6);
-  rect(ctx, "#8a7a3a", 41, 99, 4, 1);
-  rect(ctx, "#6a7a3a", 49, 99, 5, 1);
-  rect(ctx, "#f4f2ea", 4, 114, 12, 3);
-  rect(ctx, "#e4e2d8", 3, 117, 13, 3);
-  // 鍵盤
-  rect(ctx, "#35354a", 70, 114, 30, 8);
-  for (let i = 0; i < 7; i++) rect(ctx, "#5a5a70", 72 + i * 4, 116, 3, 1);
-  for (let i = 0; i < 7; i++) rect(ctx, "#5a5a70", 72 + i * 4, 119, 3, 1);
+/** 把圖裡從 top 開始的一段畫滿場景，鏡頭像呼吸一樣微微推拉；還沒載好就先黑著 */
+function photoScene(ctx: Ctx, id: PhotoId, top: number, t: number) {
+  rect(ctx, "#08080f", 0, 0, SCENE_W, SCENE_H);
+  const img = photoOf(id);
+  if (!img.complete || img.naturalWidth === 0) return;
+  const zoom = 1.02 + 0.015 * Math.sin(t / 2600);
+  const sw = PHOTO_SRC_W / zoom;
+  const sh = (sw * SCENE_H) / SCENE_W;
+  const fullH = (PHOTO_SRC_W * SCENE_H) / SCENE_W;
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, (PHOTO_SRC_W - sw) / 2, top + (fullH - sh) / 2, sw, sh, 0, 0, SCENE_W, SCENE_H);
+  ctx.restore();
 }
 
-// ---------- 小吃店 ----------
-
-export function drawEatery(ctx: Ctx, t: number, opts: { eating?: boolean } = {}) {
-  const { eating = false } = opts;
-  if (eating) {
-    drawEateryInside(ctx, t);
-    return;
-  }
-  // 黃昏的街
-  bands(ctx, ["#2a2452", "#46306a", "#7a4476", "#c0607a", "#ee9a70"], 0, 0, 180, 66);
-  rect(ctx, "#2a2348", 0, 66, 180, 30);
-  skyline(ctx, [[0, 26, 50], [24, 22, 40], [120, 28, 58], [146, 34, 44]], 70, "#2a2348", "#ffd98a", t);
-  // 店面
-  rect(ctx, "#4a3528", 44, 22, 92, 74);
-  rect(ctx, "#ffe2a4", 50, 44, 80, 52);
-  rect(ctx, "#f2c677", 50, 88, 80, 8);
-  // 招牌：燈管偶爾閃
-  const signOn = saw(t, 3100) > 0.08;
-  rect(ctx, "#2a1a14", 42, 14, 96, 24);
-  rect(ctx, signOn ? "#c9352b" : "#6b2a24", 44, 16, 92, 20);
-  pixelText(ctx, "林記小吃", 90, 18, 14, signOn ? "#ffe9a8" : "#a8785a", "center");
-  // 店內：老闆、大鍋和往上飄的蒸氣
-  rect(ctx, "#f4f4f4", 92, 54, 14, 18);
-  rect(ctx, "#efc29a", 94, 44, 10, 10);
-  rect(ctx, "#f4f4f4", 93, 41, 12, 4);
-  rect(ctx, "#6d7074", 62, 70, 24, 16);
-  rect(ctx, "#8a8d92", 60, 68, 28, 3);
-  for (let i = 0; i < 4; i++) {
-    const p = saw(t + i * 500, 2000);
-    rect(ctx, "#ffffffaa", 66 + i * 5 + (blink(t + i * 300, 500) ? 1 : 0), 66 - p * 20, 2, 2);
-  }
-  rect(ctx, "#8a5a3a", 50, 86, 80, 10);
-  rect(ctx, "#6d452c", 50, 86, 80, 2);
-  // 門口的紅色塑膠椅
-  rect(ctx, "#d33b35", 112, 100, 12, 3);
-  rect(ctx, "#a82c28", 113, 103, 2, 7);
-  rect(ctx, "#a82c28", 121, 103, 2, 7);
-  // 地面
-  rect(ctx, "#2d2a3e", 0, 96, 180, 54);
-  rect(ctx, "#3a364e", 0, 96, 180, 2);
-  dither(ctx, "#ffe2a422", 44, 98, 92, 22);
-  // 路燈
-  rect(ctx, "#1a1826", 16, 40, 3, 60);
-  rect(ctx, "#1a1826", 16, 40, 12, 2);
-  rect(ctx, "#fff0b8", 24, 42, 6, 2);
-  glow(ctx, "#fff0b833", 27, 46, 12, t);
-  // 兩個人一起走過去的影子
-  const px = 200 - saw(t, 13000) * 260;
-  for (const off of [0, 11]) {
-    rect(ctx, "#15131f", px + off, 102, 8, 18);
-    rect(ctx, "#15131f", px + off + 1, 95, 6, 7);
-    rect(ctx, "#15131f", px + off + 1, 120, 2, 8);
-    rect(ctx, "#15131f", px + off + 5, 120, 2, 8);
-  }
-  // 家豪站在路邊，機車的大燈掃過去
-  drawJiahao(ctx, 76, 98, "sigh", t);
-  const sx = saw(t, 5400) * 300 - 60;
-  rect(ctx, "#181622", sx, 134, 22, 6);
-  rect(ctx, "#181622", sx + 8, 126, 8, 8);
-  rect(ctx, "#fff7c8", sx + 22, 134, 2, 3);
-  dither(ctx, "#fff7c855", sx + 24, 130, 26, 12);
-  rect(ctx, "#ff5a4a", sx - 1, 134, 1, 2);
+export function drawOfficeScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "office", 215, t);
 }
 
-function drawEateryInside(ctx: Ctx, t: number) {
-  rect(ctx, "#d9b98a", 0, 0, 180, 96);
-  dither(ctx, "#ccaa78", 0, 0, 180, 40);
-  // 牆上的菜單和電視
-  rect(ctx, "#8d2f28", 8, 10, 58, 40);
-  for (let i = 0; i < 5; i++) {
-    rect(ctx, "#ffe9a8", 12, 15 + i * 7, 26 + (i * 13) % 20, 2);
-    rect(ctx, "#ffe9a8", 56, 15 + i * 7, 6, 2);
-  }
-  rect(ctx, "#20202a", 122, 8, 46, 32);
-  rect(ctx, blink(t, 700) ? "#6db0d8" : "#5a9cc4", 124, 10, 42, 26);
-  rect(ctx, "#d9534f", 124, 30, 42, 6);
-  rect(ctx, "#ffffff", 126 + (saw(t, 2600) * 30 | 0), 32, 10, 2);
-  rect(ctx, "#efc29a", 140, 16, 10, 12);
-  rect(ctx, "#20202a", 141, 14, 8, 3);
-  // 吊扇在轉
-  rect(ctx, "#6d5a48", 88, 0, 2, 8);
-  const blade = Math.floor(t / 120) % 3;
-  rect(ctx, "#8d7a66", 76 + blade * 2, 8, 26 - blade * 4, 2);
-  // 靠牆的位子
-  rect(ctx, "#5e4630", 0, 96, 180, 54);
-  rect(ctx, "#4a3524", 0, 96, 180, 3);
-  // 對面的空椅子，放著他的背包
-  rect(ctx, "#b84038", 26, 76, 22, 3);
-  rect(ctx, "#963028", 28, 79, 2, 18);
-  rect(ctx, "#963028", 44, 79, 2, 18);
-  rect(ctx, "#39485e", 28, 62, 18, 14);
-  rect(ctx, "#2a3648", 32, 66, 10, 6);
-  rect(ctx, "#2a3648", 33, 58, 8, 4);
-  // 家豪
-  drawJiahao(ctx, 86, 56, "eat", t);
-  // 桌子、碗、蒸氣
-  rect(ctx, "#e8e2d2", 50, 90, 130, 8);
-  rect(ctx, "#c9c2ae", 50, 98, 130, 4);
-  rect(ctx, "#8d6f50", 60, 102, 4, 48);
-  rect(ctx, "#8d6f50", 166, 102, 4, 48);
-  rect(ctx, "#f4f4f4", 92, 82, 20, 8);
-  rect(ctx, "#5f8fb0", 92, 86, 20, 1);
-  rect(ctx, "#d4813e", 94, 82, 16, 2);
+export function drawCommuteScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "commute", 110, t);
+  rain(ctx, t, 0, 0, SCENE_W, SCENE_H, 30);
+}
+
+export function drawNoodleScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "bed", 515, t);
+  // 泡麵的熱氣
   for (let i = 0; i < 3; i++) {
-    const p = saw(t + i * 600, 1800);
-    rect(ctx, "#ffffff99", 96 + i * 5, 80 - p * 14, 1, 3);
+    const p = saw(t + i * 700, 2100);
+    rect(ctx, "#ffffff44", 58 + i * 3 + Math.sin(p * 6 + i) * 2, 100 - p * 18, 1, 2);
   }
-  rect(ctx, "#b0413a", 134, 80, 6, 10);
-  rect(ctx, "#f4efe0", 134, 77, 6, 3);
-  rect(ctx, "#3a2a20", 146, 82, 5, 8);
 }
 
-// ---------- 租屋處 ----------
+export function drawNightScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "bed", 300, t);
+}
 
-export function drawRoom(ctx: Ctx, t: number, opts: { mode?: "night" | "day"; pose?: "phone" | "sleep" | "sigh" } = {}) {
-  const { mode = "night", pose = "sigh" } = opts;
-  const night = mode === "night";
-  const c = (dark: string, light: string) => (night ? dark : light);
-  // 牆、踢腳板、木地板
-  rect(ctx, c("#2b2a3a", "#d8cdb4"), 0, 0, 180, 94);
-  rect(ctx, c("#1e1d2a", "#a58a68"), 0, 92, 180, 3);
-  rect(ctx, c("#241d22", "#8a6242"), 0, 95, 180, 55);
-  for (let y = 102; y < 150; y += 9) rect(ctx, c("#1b161b", "#775337"), 0, y, 180, 1);
+export function drawPhoneScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "phone", 170, t);
+  // 手機是這個房間唯一的光
+  glow(ctx, "#a8e8ff33", 71, 110, 30, t);
+}
 
-  // 冷氣
-  rect(ctx, c("#4a4a56", "#e6e2d2"), 62, 6, 46, 13);
-  rect(ctx, c("#34343e", "#b5b09c"), 62, 15, 46, 4);
-  rect(ctx, c("#2a2a32", "#8f8b7a"), 65, 17, 40, 1);
+export function drawSleepScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "bed", 300, t);
+  rect(ctx, "#00000088", 0, 0, SCENE_W, SCENE_H);
+  if (blink(t, 700)) pixelText(ctx, "z", 58, 26, 11, "#cbd5e8");
+  if (blink(t + 350, 700)) pixelText(ctx, "Z", 66, 16, 14, "#cbd5e8");
+}
 
-  // 窗戶：外面的大樓，兩邊是綁起來的窗簾
-  rect(ctx, c("#3f3f4c", "#efe9da"), 132, 12, 44, 58);
-  if (night) rect(ctx, "#0b0e24", 134, 14, 40, 54);
-  else bands(ctx, ["#c0e2f0", "#d6ecf0"], 134, 14, 40, 54);
-  skyline(ctx, [[134, 16, 30], [150, 12, 40], [162, 12, 24]], 68, c("#171a33", "#a9b0ba"), c("#ffe08a", "#d5dde2"), t);
-  rect(ctx, c("#3f3f4c", "#efe9da"), 153, 14, 2, 54);
-  rect(ctx, c("#6a5a60", "#c98f7c"), 128, 9, 52, 3);
-  rect(ctx, c("#5d5258", "#e8d2c2"), 129, 12, 9, 34);
-  rect(ctx, c("#5d5258", "#e8d2c2"), 131, 46, 6, 28);
-  rect(ctx, c("#7a5a50", "#b5705c"), 130, 45, 8, 2);
-  rect(ctx, c("#5d5258", "#e8d2c2"), 170, 12, 9, 34);
-  rect(ctx, c("#5d5258", "#e8d2c2"), 171, 46, 6, 28);
-  rect(ctx, c("#7a5a50", "#b5705c"), 170, 45, 8, 2);
-  if (!night) {
-    // 白天：窗戶的光落到地板，灰塵在飄
-    dither(ctx, "#fff6d03a", 124, 100, 54, 44);
-    for (let i = 0; i < 4; i++) {
-      const p = saw(t + i * 1700, 6000);
-      rect(ctx, "#fff8e0", 136 + i * 8, 72 + p * 30, 1, 1);
-    }
+export function drawEateryScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "eatery", 0, t);
+  // 便當的熱氣
+  for (let i = 0; i < 3; i++) {
+    const p = saw(t + i * 800, 2400);
+    rect(ctx, "#ffffff55", 88 + i * 8 + Math.sin(p * 6 + i) * 2, 118 - p * 16, 1, 2);
   }
+}
 
-  // 書桌與桌上的白色書架，架上疊著泡麵碗
-  rect(ctx, c("#4a4650", "#ece6d6"), 84, 58, 26, 20);
-  rect(ctx, c("#2c2a34", "#b8b09c"), 86, 60, 10, 7);
-  rect(ctx, c("#2c2a34", "#b8b09c"), 98, 60, 10, 7);
-  rect(ctx, c("#2c2a34", "#b8b09c"), 86, 69, 22, 7);
-  for (let i = 0; i < 3; i++) rect(ctx, i % 2 ? c("#d9d3c4", "#fbf8ee") : "#c94a3a", 90 - i, 54 - i * 4, 10 + i * 2, 4);
-  rect(ctx, c("#4a4650", "#ece6d6"), 76, 78, 54, 4);
-  rect(ctx, c("#34323a", "#c4bda8"), 78, 82, 3, 28);
-  rect(ctx, c("#34323a", "#c4bda8"), 125, 82, 3, 28);
-
-  // 單人床：靠左，木頭床頭板，腳邊在畫面前方
-  rect(ctx, c("#3a2620", "#7a4a2e"), 4, 82, 60, 20);
-  rect(ctx, c("#2c1c18", "#5e3822"), 4, 82, 60, 2);
-  rect(ctx, c("#3f4258", "#cfd2b4"), 4, 100, 60, 36);
-  rect(ctx, c("#32354a", "#b4b897"), 4, 132, 60, 6);
-  dither(ctx, c("#4c4f68", "#bcc0a0"), 6, 112, 56, 18);
-  rect(ctx, c("#2c1c18", "#5e3822"), 6, 138, 4, 8);
-  rect(ctx, c("#2c1c18", "#5e3822"), 58, 138, 4, 8);
-  rect(ctx, c("#55586e", "#e6e6dc"), 10, 102, 24, 8);
-
-  if (pose === "sleep") {
-    drawJiahao(ctx, 12, 104, "sleep", t);
-    return;
-  }
-  // 坐在書桌前的椅子上，腳踩地板
-  rect(ctx, "#17161c", 90, 70, 28, 34);
-  rect(ctx, "#2a2830", 92, 72, 24, 3);
-  rect(ctx, "#17161c", 90, 104, 3, 26);
-  rect(ctx, "#17161c", 115, 104, 3, 26);
-  rect(ctx, "#3a3f54", 94, 99, 20, 7);
-  rect(ctx, "#3a3f54", 95, 106, 8, 21);
-  rect(ctx, "#3a3f54", 105, 106, 8, 21);
-  rect(ctx, "#20222c", 94, 127, 9, 3);
-  rect(ctx, "#20222c", 105, 127, 9, 3);
-  drawJiahao(ctx, 92, 66, pose === "phone" ? "phone" : "sit", t);
-  if (pose === "phone") {
-    // 手機是這個房間唯一的光
-    glow(ctx, "#a8e8ff44", 104, 92, 34, t);
-    glow(ctx, "#d8f6ff66", 104, 92, 16, t);
+export function drawWeekendScene(ctx: Ctx, t: number) {
+  photoScene(ctx, "weekend", 40, t);
+  // 窗戶進來的光裡，灰塵在飄
+  for (let i = 0; i < 5; i++) {
+    const p = saw(t + i * 1500, 7000);
+    rect(ctx, "#fff8e0aa", 92 + i * 11, 46 + p * 60, 1, 1);
   }
 }
 
 // ---------- 領薪日：手機上的銀行通知 ----------
 
 export function drawPaydaySlip(ctx: Ctx, t: number, net: string) {
-  drawOffice(ctx, t);
+  drawOfficeScene(ctx, t);
   rect(ctx, "#00000066", 0, 0, 180, 150);
   rect(ctx, "#101018", 56, 22, 68, 112);
   rect(ctx, "#e9f3e4", 60, 28, 60, 98);

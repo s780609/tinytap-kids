@@ -147,6 +147,16 @@ export function pixelText(
   for (const [rx, ry, rw] of runs) ctx.fillRect(ox + rx, oy + ry, rw, 1);
 }
 
+/** 斜斜落下的雨 */
+export function rain(ctx: Ctx, t: number, x: number, y: number, w: number, h: number, count: number) {
+  ctx.fillStyle = "rgba(190,215,255,0.45)";
+  for (let i = 0; i < count; i++) {
+    const rx = x + ((i * 53 - t * 0.05) % w + w) % w;
+    const ry = y + (i * 97 + t * 0.42) % h;
+    ctx.fillRect(Math.round(rx), Math.round(ry), 1, 7);
+  }
+}
+
 /** 由上往下的色帶，用來畫天空 */
 export function bands(ctx: Ctx, colors: readonly string[], x: number, y: number, w: number, h: number) {
   const each = h / colors.length;

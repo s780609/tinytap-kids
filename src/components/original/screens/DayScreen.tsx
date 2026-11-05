@@ -5,12 +5,8 @@ import { MONTHLY_RENT, MONTHLY_SALARY } from "@/lib/left-on-read/constants";
 import { PAYDAY_LINES, QUIET_PHONE_LINES, WEEKEND_LINES, WORK_LINES, dailyLine } from "@/lib/left-on-read/flavor";
 import type { RunState } from "@/lib/left-on-read/game";
 import { readyChats } from "@/lib/left-on-read/story";
-import { type Ctx } from "../pixel/draw";
-import { drawOffice, drawPaydaySlip, drawRoom } from "../pixel/scenes";
+import { drawOfficeScene, drawPaydaySlip, drawWeekendScene } from "../pixel/scenes";
 import { COLOR, DialogBox, PixelButton, Scene, ScreenBody, StatusBar, Typewriter } from "../ui";
-
-const drawWork = (ctx: Ctx, t: number) => drawOffice(ctx, t);
-const drawWeekend = (ctx: Ctx, t: number) => drawRoom(ctx, t, { mode: "day", pose: "sigh" });
 
 interface DayScreenProps {
   run: RunState;
@@ -30,7 +26,7 @@ export function DayScreen({ run, onMenu, onOpenChats, onEndDay }: DayScreenProps
   return (
     <>
       <StatusBar run={run} onMenu={onMenu} />
-      <Scene draw={workday ? drawWork : drawWeekend} label={workday ? "家豪在辦公室上班" : "週末的租屋處"} />
+      <Scene draw={workday ? drawOfficeScene : drawWeekendScene} label={workday ? "冠宇在辦公室上班" : "週末的租屋處"} />
       <ScreenBody
         actions={
           <>
@@ -69,7 +65,7 @@ export function PaydayScreen({ run, onMenu, onAck }: { run: RunState; onMenu: ()
   return (
     <>
       <StatusBar run={run} onMenu={onMenu} />
-      <Scene draw={(ctx, t) => drawPaydaySlip(ctx, t, net)} label="薪資入帳通知" animate={false} />
+      <Scene draw={(ctx, t) => drawPaydaySlip(ctx, t, net)} label="薪資入帳通知" />
       <ScreenBody
         actions={
           <PixelButton color={COLOR.green} silent onClick={onAck}>

@@ -6,7 +6,7 @@ import { calendarOf, formatDate } from "@/lib/left-on-read/calendar";
 import { dexProgress, isDexComplete } from "@/lib/left-on-read/dex";
 import PixelCanvas from "../PixelCanvas";
 import { blink, dither, glow, pixelText, rect, saw, type Ctx } from "../pixel/draw";
-import { drawJiahaoBust } from "../pixel/jiahaoSprite";
+import { drawGuanyuBust } from "../pixel/guanyuSprite";
 import { SCENE_H, SCENE_W } from "../pixel/scenes";
 import type { SaveState } from "../saveStore";
 import { COLOR, PixelButton } from "../ui";
@@ -30,7 +30,7 @@ function drawTitle(ctx: Ctx, t: number) {
   rect(ctx, COLOR.pink, 16, 69, 148, 2);
   rect(ctx, "#7a2c44", 16, 71, 148, 1);
 
-  drawJiahaoBust(ctx, 58, 78, { t, phoneGlow: true });
+  drawGuanyuBust(ctx, 58, 78, { t, phoneGlow: true });
   glow(ctx, "#a8e8ff33", 90, 148, 30, t);
 
   // 左邊：送出去的訊息；右邊：已讀

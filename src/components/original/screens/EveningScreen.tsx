@@ -2,13 +2,8 @@
 
 import { NOODLE_PRICE } from "@/lib/left-on-read/constants";
 import { offeredMeal, type RunState } from "@/lib/left-on-read/game";
-import { type Ctx } from "../pixel/draw";
-import { drawEatery, drawRoom } from "../pixel/scenes";
+import { drawCommuteScene, drawEateryScene, drawNoodleScene } from "../pixel/scenes";
 import { COLOR, DialogBox, PixelButton, Scene, ScreenBody, StatusBar, Typewriter } from "../ui";
-
-const drawStreet = (ctx: Ctx, t: number) => drawEatery(ctx, t);
-const drawEating = (ctx: Ctx, t: number) => drawEatery(ctx, t, { eating: true });
-const drawNoodles = (ctx: Ctx, t: number) => drawRoom(ctx, t, { mode: "night", pose: "sigh" });
 
 interface EveningScreenProps {
   run: RunState;
@@ -24,7 +19,7 @@ export function EveningScreen({ run, onMenu, onEatOut, onGoHome }: EveningScreen
   return (
     <>
       <StatusBar run={run} onMenu={onMenu} />
-      <Scene draw={drawStreet} label="黃昏街上的小吃店" />
+      <Scene draw={drawCommuteScene} label="下班的人潮" />
       <ScreenBody
         actions={
           <>
@@ -74,7 +69,7 @@ export function MealScreen({
   return (
     <>
       <StatusBar run={run} onMenu={onMenu} />
-      <Scene draw={note.home ? drawNoodles : drawEating} label={note.home ? "一個人吃泡麵" : "一個人在小吃店吃飯"} />
+      <Scene draw={note.home ? drawNoodleScene : drawEateryScene} label={note.home ? "一個人吃泡麵" : "一個人在小吃店吃飯"} />
       <ScreenBody
         actions={
           <PixelButton color={COLOR.blue} onClick={onDone}>

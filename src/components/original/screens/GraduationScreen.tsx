@@ -6,7 +6,7 @@ import type { Dex } from "@/lib/left-on-read/dex";
 import { STORIES } from "@/lib/left-on-read/stories/index";
 import PixelCanvas from "../PixelCanvas";
 import { blink, pixelText, rect, saw, type Ctx } from "../pixel/draw";
-import { drawJiahaoBust } from "../pixel/jiahaoSprite";
+import { drawGuanyuBust } from "../pixel/guanyuSprite";
 import { SCENE_H, SCENE_W } from "../pixel/scenes";
 import { COLOR, PixelButton } from "../ui";
 
@@ -29,7 +29,7 @@ function drawDiploma(ctx: Ctx, t: number) {
     const half = 8 + (y - 24) * 0.42;
     ctx.fillRect(90 - half, y, half * 2, 1);
   }
-  drawJiahaoBust(ctx, 58, 44, { t, gradCap: true });
+  drawGuanyuBust(ctx, 58, 44, { t, gradCap: true });
   // 手上那張證書
   rect(ctx, "#000000", 16, 84, 44, 34);
   rect(ctx, "#f6efd8", 18, 82, 44, 34);
@@ -63,7 +63,7 @@ export function GraduationScreen({ dex, dayIndex, onContinue, onMenu }: Graduati
   );
   const lines = useMemo(
     () => [
-      "林家豪　二十五歲",
+      "陳冠宇　二十五歲",
       "於私立 Swipy 大學　男性困境學系　修業期滿。",
       "已讀、斷聯、業績、秒殺四大學程，共 27 門，全部修畢。",
       `總計失敗 ${total} 次${dayIndex !== null ? `，歷時 ${dayIndex + 1} 天` : ""}。成績全部不及格，學分全部拿到。`,
@@ -94,7 +94,7 @@ export function GraduationScreen({ dex, dayIndex, onContinue, onMenu }: Graduati
           height={SCENE_H}
           draw={drawDiploma}
           animate
-          label="家豪的畢業典禮"
+          label="冠宇的畢業典禮"
           className="block h-auto max-h-[40dvh] w-full object-contain [@media(max-height:500px)]:max-h-[28dvh]"
         />
       </div>

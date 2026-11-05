@@ -543,7 +543,7 @@ function expectedTranscript(story: Story, chat: Chat, girl: Girl, revealed: bool
   return lines;
 }
 
-test("chatTranscript：順序是開場白、她的訊息、家豪選的回覆，內容已替換佔位符", () => {
+test("chatTranscript：順序是開場白、她的訊息、冠宇選的回覆，內容已替換佔位符", () => {
   const openers: OpenerKind[] = ["hi", "whatsup", "eaten", "interest"];
   STORIES.forEach((story, n) => {
     const girlSeed = n * 31 + 1;

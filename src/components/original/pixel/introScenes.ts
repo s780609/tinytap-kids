@@ -13,7 +13,7 @@ import {
   swipeBeatAt,
   type IntroSceneId,
 } from "@/lib/left-on-read/intro";
-import { digits, digitsWidth, pixelText, rect, saw, type Ctx } from "./draw";
+import { digits, digitsWidth, pixelText, rain, rect, saw, type Ctx } from "./draw";
 import { PHOTO_H, PHOTO_W, drawGirl } from "./girlSprite";
 
 export const INTRO_W = 392;
@@ -80,15 +80,6 @@ function darken(ctx: Ctx, alpha: number) {
   if (alpha <= 0) return;
   ctx.fillStyle = `rgba(0,0,0,${Math.min(1, alpha)})`;
   ctx.fillRect(0, 0, INTRO_W, INTRO_H);
-}
-
-function rain(ctx: Ctx, t: number, x: number, y: number, w: number, h: number, count: number) {
-  ctx.fillStyle = "rgba(190,215,255,0.45)";
-  for (let i = 0; i < count; i++) {
-    const rx = x + ((i * 53 - t * 0.05) % w + w) % w;
-    const ry = y + (i * 97 + t * 0.42) % h;
-    ctx.fillRect(Math.round(rx), Math.round(ry), 1, 7);
-  }
 }
 
 /** 其他地方壓暗，只留一個圓 */

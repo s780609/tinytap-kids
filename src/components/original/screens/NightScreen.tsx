@@ -4,13 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { audioManager } from "@/lib/audio/AudioManager";
 import { NIGHT_DONE_LINES, NIGHT_LINES, dailyLine } from "@/lib/left-on-read/flavor";
 import type { RunState } from "@/lib/left-on-read/game";
-import { type Ctx } from "../pixel/draw";
-import { drawRoom } from "../pixel/scenes";
+import { drawNightScene, drawPhoneScene, drawSleepScene } from "../pixel/scenes";
 import { COLOR, DialogBox, PixelButton, Scene, ScreenBody, StatusBar, Typewriter } from "../ui";
-
-const drawSit = (ctx: Ctx, t: number) => drawRoom(ctx, t, { mode: "night", pose: "sigh" });
-const drawPhone = (ctx: Ctx, t: number) => drawRoom(ctx, t, { mode: "night", pose: "phone" });
-const drawSleep = (ctx: Ctx, t: number) => drawRoom(ctx, t, { mode: "night", pose: "sleep" });
 
 const SLEEP_MS = 1400;
 
@@ -45,8 +40,8 @@ export function NightScreen({ run, onMenu, onOpenApp, onSleep }: NightScreenProp
     <>
       <StatusBar run={run} onMenu={onMenu} />
       <Scene
-        draw={sleeping ? drawSleep : done ? drawPhone : drawSit}
-        label={sleeping ? "家豪睡著了" : "深夜的租屋處"}
+        draw={sleeping ? drawSleepScene : done ? drawPhoneScene : drawNightScene}
+        label={sleeping ? "冠宇睡著了" : "深夜的租屋處"}
       />
       <ScreenBody
         actions={

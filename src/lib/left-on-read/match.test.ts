@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { matchProbability, nextStreak, rollMatch } from "./match.ts";
 import type { MatchInput } from "./match.ts";
-import { JIAHAO_AGE } from "./constants.ts";
+import { GUANYU_AGE } from "./constants.ts";
 
 const near = (actual: number, expected: number, eps = 1e-9) =>
   assert.ok(Math.abs(actual - expected) < eps, `${actual} 應該接近 ${expected}`);
@@ -11,8 +11,8 @@ const near = (actual: number, expected: number, eps = 1e-9) =>
 const neutral: MatchInput = { pickiness: 0.3, rightStreak: 0, age: 25, eduMod: 0 };
 const pWith = (patch: Partial<MatchInput>) => matchProbability({ ...neutral, ...patch });
 
-test("家豪是 25 歲", () => {
-  assert.equal(JIAHAO_AGE, 25);
+test("冠宇是 25 歲", () => {
+  assert.equal(GUANYU_AGE, 25);
 });
 
 test("公式已知值", () => {

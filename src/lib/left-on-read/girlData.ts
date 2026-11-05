@@ -84,7 +84,7 @@ export const PHOTO_BGS = [
 
 /**
  * 興趣決定第四句開場白和自介。
- * openerLine 是家豪努力回應她自介的那一句，用力過猛是正常的。
+ * openerLine 是冠宇努力回應她自介的那一句，用力過猛是正常的。
  */
 export const INTERESTS = [
   {

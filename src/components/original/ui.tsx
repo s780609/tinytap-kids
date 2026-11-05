@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { audioManager } from "@/lib/audio/AudioManager";
 import { calendarOf, formatDate } from "@/lib/left-on-read/calendar";
 import type { Phase, RunState } from "@/lib/left-on-read/game";
@@ -150,19 +150,27 @@ export function DialogBox({ children, className = "" }: { children: ReactNode; c
 export function Scene({
   draw,
   label,
-  animate = true,
 }: {
   draw: (ctx: CanvasRenderingContext2D, t: number) => void;
   label: string;
-  animate?: boolean;
 }) {
+  // 畫布是邏輯尺寸的兩倍：插圖才清楚，像素場景放大兩倍後一樣方正
+  const scaled = useCallback(
+    (ctx: CanvasRenderingContext2D, t: number) => {
+      ctx.save();
+      ctx.scale(2, 2);
+      draw(ctx, t);
+      ctx.restore();
+    },
+    [draw]
+  );
   return (
     <div className="flex shrink-0 justify-center border-b-[3px] border-black bg-black">
       <PixelCanvas
-        width={SCENE_W}
-        height={SCENE_H}
-        draw={draw}
-        animate={animate}
+        width={SCENE_W * 2}
+        height={SCENE_H * 2}
+        draw={scaled}
+        animate
         label={label}
         className="block h-auto max-h-[40dvh] w-full object-contain [@media(max-height:500px)]:max-h-[28dvh]"
       />

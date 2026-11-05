@@ -14,7 +14,7 @@ export const MEAL_PRICE_MAX = 260;
 /** 讀檔時的金額上限，正常遊玩賺不到這麼多 */
 export const MAX_MONEY = 999_999_999;
 
-export const JIAHAO_AGE = 25;
+export const GUANYU_AGE = 25;
 
 export const RUN_SAVE_KEY = "tinytap-left-on-read-run";
 export const META_SAVE_KEY = "tinytap-left-on-read-meta";

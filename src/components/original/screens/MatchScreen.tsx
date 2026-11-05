@@ -7,7 +7,7 @@ import type { OpenerKind } from "@/lib/left-on-read/storyTypes";
 import PixelCanvas from "../PixelCanvas";
 import { blink, pixelText, rect, saw, sprite, type Ctx } from "../pixel/draw";
 import { PHOTO_H, PHOTO_W, drawGirl } from "../pixel/girlSprite";
-import { drawJiahaoBust } from "../pixel/jiahaoSprite";
+import { drawGuanyuBust } from "../pixel/guanyuSprite";
 import { SCENE_H, SCENE_W } from "../pixel/scenes";
 import { PixelButton } from "../ui";
 
@@ -52,7 +52,7 @@ function makeDraw(girl: Girl) {
     const rx = 180 - eased * 74;
     rect(ctx, "#000000", lx - 2, 72, 68, 78);
     rect(ctx, "#ffe08a", lx, 74, 64, 76);
-    drawJiahaoBust(ctx, lx, 80, { t });
+    drawGuanyuBust(ctx, lx, 80, { t });
     rect(ctx, "#000000", rx - 2, 72, 68, 78);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(photo, 0, 0, PHOTO_W, PHOTO_H, rx + 2, 74, 60, 75);

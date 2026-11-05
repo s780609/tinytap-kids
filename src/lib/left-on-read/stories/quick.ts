@@ -112,7 +112,7 @@ export const QUICK_STORIES: readonly Story[] = [
     category: "quick",
     steps: [
       {
-        incoming: { kind: "message", text: "……家豪？" },
+        incoming: { kind: "message", text: "……冠宇？" },
         replies: ["妳怎麼知道我名字", "咦 妳的照片好眼熟", "等一下 妳是不是在 12 樓"],
       },
       {
