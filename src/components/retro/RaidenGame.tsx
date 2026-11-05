@@ -10,7 +10,9 @@ import { STAGES } from "@/lib/raiden/stages";
 import { carryOver, consumeTicks, createStage, startCarry, step } from "@/lib/raiden/sim";
 import type { Carry, GameEvent, GameState } from "@/lib/raiden/sim";
 import { mergeHiScore, mergeProgress, parseHiScores, parseProgress, type DiffMap } from "@/lib/tank/score";
+import { mergeAxis } from "@/lib/raiden/stick";
 import { drawGame } from "./raidenRender";
+import RaidenStick from "./RaidenStick";
 import { loadSprites } from "./raidenSprites";
 import type { Sprites } from "./raidenSprites";
 
@@ -78,8 +80,8 @@ const BOMB_KEYS = new Set(["KeyX", "KeyK", "KeyB", "Space"]);
 const INTRO_MS = 1800;
 const TALLY_AUTO_MS = 5000;
 const HUD_H = 56;
-/** 直拿時地圖下面留給手指滑動與炸彈鈕的空間 */
-const BOTTOM_PORTRAIT = 96;
+/** 直拿時地圖下面留給搖桿與炸彈鈕的空間 */
+const BOTTOM_PORTRAIT = 136;
 const SIDE_LANDSCAPE = 110;
 const SOUND_GAP_MS = 60;
 /** 手指移動 1px，飛機移動幾倍（手指不用滑太遠） */
@@ -141,6 +143,7 @@ export default function RaidenGame() {
   const dragRef = useRef<{ id: number; x: number; y: number } | null>(null);
   const targetRef = useRef<{ x: number; y: number } | null>(null);
   const keysRef = useRef<Set<string>>(new Set());
+  const stickRef = useRef({ dx: 0, dy: 0 });
   const bombReqRef = useRef(false);
   const soundAtRef = useRef<Map<string, number>>(new Map());
   const startingRef = useRef(false);
@@ -185,6 +188,7 @@ export default function RaidenGame() {
 
   const clearInput = useCallback(() => {
     keysRef.current.clear();
+    stickRef.current = { dx: 0, dy: 0 };
     dragRef.current = null;
     targetRef.current = null;
     bombReqRef.current = false;
@@ -385,11 +389,14 @@ export default function RaidenGame() {
           dx += KEY_X[k] ?? 0;
           dy += KEY_Y[k] ?? 0;
         });
+        const stick = stickRef.current;
+        const mx = mergeAxis(Math.sign(dx), stick.dx);
+        const my = mergeAxis(Math.sign(dy), stick.dy);
         for (let i = 0; i < steps; i++) {
           const t = targetRef.current;
           step(
             g,
-            { tx: t ? t.x : null, ty: t ? t.y : null, dx: Math.sign(dx), dy: Math.sign(dy), bomb: bombReqRef.current },
+            { tx: t ? t.x : null, ty: t ? t.y : null, dx: mx, dy: my, bomb: bombReqRef.current },
             events
           );
           bombReqRef.current = false;
@@ -528,10 +535,20 @@ export default function RaidenGame() {
         />
         {screen === "play" && (
           <div className="mt-3 text-center text-xs font-bold text-white/40 portrait:block landscape:hidden">
-            在畫面任何地方按住拖曳來移動，會自動射擊
+            左下搖桿或拖曳畫面移動<br />會自動射擊
           </div>
         )}
       </div>
+
+      {/* 搖桿 */}
+      {screen === "play" && !paused && (
+        <RaidenStick
+          className="fixed bottom-4 left-4 z-30 h-28 w-28 landscape:h-24 landscape:w-24"
+          onMove={(dx, dy) => {
+            stickRef.current = { dx, dy };
+          }}
+        />
+      )}
 
       {/* 炸彈鈕 */}
       {screen === "play" && !paused && (
@@ -648,7 +665,7 @@ export default function RaidenGame() {
 
             <div className="mt-6 rounded-2xl bg-white/5 p-4 text-sm font-bold leading-relaxed text-white/75">
               <div className="mb-1 font-black text-white">操作方式</div>
-              <div>📱 畫面任何地方按住拖曳就能移動（手指不會擋住飛機），一直自動射擊；右下角 💣 放炸彈</div>
+              <div>📱 左下角搖桿往上下左右推就能移動（推越遠飛越快），也可以在畫面任何地方按住拖曳（手指不會擋住飛機），一直自動射擊；右下角 💣 放炸彈</div>
               <div>⌨️ 方向鍵或 W A S D 移動，X / K / 空白鍵放炸彈，P / Esc 暫停</div>
               <div className="mt-2 font-black text-white">道具</div>
               <div>
