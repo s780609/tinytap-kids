@@ -9,12 +9,18 @@ import { useSettings } from "@/lib/settings/SettingsContext";
 import { audioManager } from "@/lib/audio/AudioManager";
 import type { AppSettings } from "@/lib/settings/storage";
 
+/** 按多久才進得去自創遊戲，跟家長設定一樣 */
+const ADULT_HOLD_MS = 800;
+
 export default function HomePage() {
   const router = useRouter();
   const { settings } = useSettings();
   const [showVolume, setShowVolume] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [adultHolding, setAdultHolding] = useState(false);
+  const [adultHint, setAdultHint] = useState(false);
   const hasInited = useRef(false);
 
   useEffect(() => {
@@ -38,6 +44,25 @@ export default function HomePage() {
 
   const cancelLongPress = () => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const startAdultHold = () => {
+    setAdultHint(false);
+    setAdultHolding(true);
+    adultTimer.current = setTimeout(() => {
+      adultTimer.current = null;
+      setAdultHolding(false);
+      handleModeSelect("original");
+    }, ADULT_HOLD_MS);
+  };
+
+  /** 還沒按滿就放開：取消，手指放開時順便提示要按住 */
+  const cancelAdultHold = (showHint: boolean) => {
+    if (!adultTimer.current) return;
+    clearTimeout(adultTimer.current);
+    adultTimer.current = null;
+    setAdultHolding(false);
+    if (showHint) setAdultHint(true);
   };
 
   return (
@@ -88,11 +113,31 @@ export default function HomePage() {
           <span className="text-base font-normal opacity-80">大小孩／大人</span>
         </BigButton>
 
-        <BigButton color="#37474F" onClick={() => handleModeSelect("original")}>
-          <span className="text-5xl mb-2">📱</span>
-          <span>自創遊戲</span>
-          <span className="text-base font-normal opacity-80">大人向</span>
-        </BigButton>
+        {/* 大人向：跟家長設定一樣要按住，小孩隨手點進不去 */}
+        <div
+          className="relative select-none"
+          style={{ WebkitTouchCallout: "none" }}
+          onPointerDown={startAdultHold}
+          onPointerUp={() => cancelAdultHold(true)}
+          onPointerLeave={() => cancelAdultHold(false)}
+          onPointerCancel={() => cancelAdultHold(false)}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <BigButton color="#37474F">
+            <span className="text-5xl mb-2">📱</span>
+            <span>自創遊戲</span>
+            <span className="text-base font-normal opacity-80">
+              {adultHint ? "要按住才進得去" : "大人向・按住進入"}
+            </span>
+          </BigButton>
+          <div
+            className="absolute inset-0 rounded-[2rem] bg-white/25 pointer-events-none origin-left"
+            style={{
+              transform: `scaleX(${adultHolding ? 1 : 0})`,
+              transition: adultHolding ? `transform ${ADULT_HOLD_MS}ms linear` : "none",
+            }}
+          />
+        </div>
       </div>
 
       {/* Volume button */}
