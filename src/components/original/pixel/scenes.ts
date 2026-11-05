@@ -244,90 +244,79 @@ function drawEateryInside(ctx: Ctx, t: number) {
 export function drawRoom(ctx: Ctx, t: number, opts: { mode?: "night" | "day"; pose?: "phone" | "sleep" | "sigh" } = {}) {
   const { mode = "night", pose = "sigh" } = opts;
   const night = mode === "night";
-  // 牆和地板
-  rect(ctx, night ? "#1a1d33" : "#c9c0a8", 0, 0, 180, 104);
-  dither(ctx, night ? "#1f2340" : "#bfb69c", 0, 0, 180, 40);
-  rect(ctx, night ? "#11132a" : "#8d7d68", 0, 104, 180, 46);
-  rect(ctx, night ? "#0c0e1f" : "#776956", 0, 104, 180, 2);
+  const c = (dark: string, light: string) => (night ? dark : light);
+  // 牆、踢腳板、木地板
+  rect(ctx, c("#2b2a3a", "#d8cdb4"), 0, 0, 180, 94);
+  rect(ctx, c("#1e1d2a", "#a58a68"), 0, 92, 180, 3);
+  rect(ctx, c("#241d22", "#8a6242"), 0, 95, 180, 55);
+  for (let y = 102; y < 150; y += 9) rect(ctx, c("#1b161b", "#775337"), 0, y, 180, 1);
 
-  // 小窗：外面的大樓、對面的燈
-  rect(ctx, "#39394c", 120, 12, 44, 40);
-  if (night) rect(ctx, "#0b0e24", 122, 14, 40, 36);
-  else bands(ctx, ["#c0e2f0", "#d6ecf0"], 122, 14, 40, 36);
-  skyline(ctx, [[122, 16, 26], [138, 12, 34], [150, 12, 20]], 50, night ? "#171a33" : "#a9b0ba", night ? "#ffe08a" : "#d5dde2", t);
-  rect(ctx, "#39394c", 141, 14, 2, 36);
-  // 破窗簾
-  rect(ctx, night ? "#33365a" : "#95a4ae", 118, 10, 8, 44);
-  rect(ctx, night ? "#282a48" : "#7f8e98", 120, 10, 2, 44);
-  if (night) {
-    // 窗外偶爾有車燈掃過天花板
-    const sweep = saw(t, 6000);
-    if (sweep < 0.4) {
-      const lx = 180 - (sweep / 0.4) * 240;
-      dither(ctx, "#ffeec844", lx, 0, 46, 22, 0);
-      dither(ctx, "#ffeec855", lx + 10, 22, 26, 12, 1);
-    }
-  } else {
+  // 冷氣
+  rect(ctx, c("#4a4a56", "#e6e2d2"), 62, 6, 46, 13);
+  rect(ctx, c("#34343e", "#b5b09c"), 62, 15, 46, 4);
+  rect(ctx, c("#2a2a32", "#8f8b7a"), 65, 17, 40, 1);
+
+  // 窗戶：外面的大樓，兩邊是綁起來的窗簾
+  rect(ctx, c("#3f3f4c", "#efe9da"), 132, 12, 44, 58);
+  if (night) rect(ctx, "#0b0e24", 134, 14, 40, 54);
+  else bands(ctx, ["#c0e2f0", "#d6ecf0"], 134, 14, 40, 54);
+  skyline(ctx, [[134, 16, 30], [150, 12, 40], [162, 12, 24]], 68, c("#171a33", "#a9b0ba"), c("#ffe08a", "#d5dde2"), t);
+  rect(ctx, c("#3f3f4c", "#efe9da"), 153, 14, 2, 54);
+  rect(ctx, c("#6a5a60", "#c98f7c"), 128, 9, 52, 3);
+  rect(ctx, c("#5d5258", "#e8d2c2"), 129, 12, 9, 34);
+  rect(ctx, c("#5d5258", "#e8d2c2"), 131, 46, 6, 28);
+  rect(ctx, c("#7a5a50", "#b5705c"), 130, 45, 8, 2);
+  rect(ctx, c("#5d5258", "#e8d2c2"), 170, 12, 9, 34);
+  rect(ctx, c("#5d5258", "#e8d2c2"), 171, 46, 6, 28);
+  rect(ctx, c("#7a5a50", "#b5705c"), 170, 45, 8, 2);
+  if (!night) {
     // 白天：窗戶的光落到地板，灰塵在飄
-    dither(ctx, "#fff6d060", 92, 56, 44, 52);
-    dither(ctx, "#fff6d090", 92, 108, 54, 40);
+    dither(ctx, "#fff6d03a", 124, 100, 54, 44);
     for (let i = 0; i < 4; i++) {
       const p = saw(t + i * 1700, 6000);
-      rect(ctx, "#fff8e0", 100 + i * 10, 64 + p * 40, 1, 1);
+      rect(ctx, "#fff8e0", 136 + i * 8, 72 + p * 30, 1, 1);
     }
   }
 
-  // 天花板的水漬，形狀有點像台灣
-  const stain = night ? "#242845" : "#ad9f84";
-  rect(ctx, stain, 54, 7, 5, 2);
-  rect(ctx, stain, 52, 9, 7, 3);
-  rect(ctx, stain, 51, 12, 7, 3);
-  rect(ctx, stain, 50, 15, 6, 3);
-  rect(ctx, stain, 51, 18, 3, 2);
+  // 書桌與桌上的白色書架，架上疊著泡麵碗
+  rect(ctx, c("#4a4650", "#ece6d6"), 84, 58, 26, 20);
+  rect(ctx, c("#2c2a34", "#b8b09c"), 86, 60, 10, 7);
+  rect(ctx, c("#2c2a34", "#b8b09c"), 98, 60, 10, 7);
+  rect(ctx, c("#2c2a34", "#b8b09c"), 86, 69, 22, 7);
+  for (let i = 0; i < 3; i++) rect(ctx, i % 2 ? c("#d9d3c4", "#fbf8ee") : "#c94a3a", 90 - i, 54 - i * 4, 10 + i * 2, 4);
+  rect(ctx, c("#4a4650", "#ece6d6"), 76, 78, 54, 4);
+  rect(ctx, c("#34323a", "#c4bda8"), 78, 82, 3, 28);
+  rect(ctx, c("#34323a", "#c4bda8"), 125, 82, 3, 28);
 
-  // 曬衣架上的 T 恤
-  rect(ctx, "#6a6a70", 6, 20, 46, 2);
-  rect(ctx, "#6a6a70", 8, 22, 2, 80);
-  rect(ctx, night ? "#5a6078" : "#8f97ab", 16, 24, 14, 18);
-  rect(ctx, night ? "#70768e" : "#b5bccc", 19, 24, 2, 2);
-  rect(ctx, night ? "#70768e" : "#b5bccc", 22, 25, 2, 2);
-  rect(ctx, night ? "#70768e" : "#b5bccc", 25, 24, 2, 2);
-  rect(ctx, night ? "#4a4e62" : "#6e7589", 34, 24, 12, 22);
-
-  // 書桌：筆電、泡麵碗疊成一座塔、橘子袋
-  rect(ctx, night ? "#3a2f33" : "#8d6f50", 120, 82, 58, 5);
-  rect(ctx, night ? "#2a2226" : "#6d5238", 124, 87, 3, 26);
-  rect(ctx, night ? "#2a2226" : "#6d5238", 170, 87, 3, 26);
-  for (let i = 0; i < 4; i++) {
-    rect(ctx, i % 2 ? "#d9d3c4" : "#c94a3a", 160 - i, 78 - i * 4, 12 + i * 2, 4);
-  }
-  rect(ctx, "#2a2a36", 128, 70, 24, 12);
-  rect(ctx, night ? "#242a44" : "#3a4258", 130, 72, 20, 8);
-  rect(ctx, "#1a1a24", 126, 81, 28, 2);
-
-  // 單人床
-  rect(ctx, night ? "#2b2f4a" : "#6a7a94", 10, 104, 104, 26);
-  rect(ctx, night ? "#3a3f5e" : "#8a9ab4", 10, 96, 104, 10);
-  rect(ctx, night ? "#1b1e33" : "#4a5468", 10, 130, 104, 4);
-  rect(ctx, night ? "#1b1e33" : "#4a5468", 12, 134, 4, 10);
-  rect(ctx, night ? "#1b1e33" : "#4a5468", 108, 134, 4, 10);
-  rect(ctx, night ? "#46465e" : "#d4d6dc", 12, 92, 22, 8);
+  // 單人床：靠左，木頭床頭板，腳邊在畫面前方
+  rect(ctx, c("#3a2620", "#7a4a2e"), 4, 82, 60, 20);
+  rect(ctx, c("#2c1c18", "#5e3822"), 4, 82, 60, 2);
+  rect(ctx, c("#3f4258", "#cfd2b4"), 4, 100, 60, 36);
+  rect(ctx, c("#32354a", "#b4b897"), 4, 132, 60, 6);
+  dither(ctx, c("#4c4f68", "#bcc0a0"), 6, 112, 56, 18);
+  rect(ctx, c("#2c1c18", "#5e3822"), 6, 138, 4, 8);
+  rect(ctx, c("#2c1c18", "#5e3822"), 58, 138, 4, 8);
+  rect(ctx, c("#55586e", "#e6e6dc"), 10, 102, 24, 8);
 
   if (pose === "sleep") {
-    drawJiahao(ctx, 12, 90, "sleep", t);
+    drawJiahao(ctx, 12, 104, "sleep", t);
     return;
   }
-  // 坐在床邊：腿垂到床沿外
-  rect(ctx, "#3a3f54", 63, 101, 18, 8);
-  rect(ctx, "#3a3f54", 64, 109, 7, 21);
-  rect(ctx, "#3a3f54", 73, 109, 7, 21);
-  rect(ctx, "#20222c", 63, 130, 8, 3);
-  rect(ctx, "#20222c", 73, 130, 8, 3);
-  drawJiahao(ctx, 60, 70, pose === "phone" ? "phone" : "sit", t);
+  // 坐在書桌前的椅子上，腳踩地板
+  rect(ctx, "#17161c", 90, 70, 28, 34);
+  rect(ctx, "#2a2830", 92, 72, 24, 3);
+  rect(ctx, "#17161c", 90, 104, 3, 26);
+  rect(ctx, "#17161c", 115, 104, 3, 26);
+  rect(ctx, "#3a3f54", 94, 99, 20, 7);
+  rect(ctx, "#3a3f54", 95, 106, 8, 21);
+  rect(ctx, "#3a3f54", 105, 106, 8, 21);
+  rect(ctx, "#20222c", 94, 127, 9, 3);
+  rect(ctx, "#20222c", 105, 127, 9, 3);
+  drawJiahao(ctx, 92, 66, pose === "phone" ? "phone" : "sit", t);
   if (pose === "phone") {
     // 手機是這個房間唯一的光
-    glow(ctx, "#a8e8ff44", 72, 96, 34, t);
-    glow(ctx, "#d8f6ff66", 72, 96, 16, t);
+    glow(ctx, "#a8e8ff44", 104, 92, 34, t);
+    glow(ctx, "#d8f6ff66", 104, 92, 16, t);
   }
 }
 

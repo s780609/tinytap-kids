@@ -257,14 +257,13 @@ const store = (ctx: Ctx, t: number) => {
 const room = (ctx: Ctx, t: number) => {
   drawRoom(ctx, t, { mode: "night", pose: "sigh" });
   // 桌上那只空的橘色網袋
-  rect(ctx, "#f0962e", 154, 76 - 12, 1, 1);
-  for (let j = 0; j < 3; j++) dither(ctx, "#f0962e", 138, 72 + j * 3, 10, 2, j);
+  for (let j = 0; j < 3; j++) dither(ctx, "#f0962e", 113, 69 + j * 3, 10, 2, j);
   // 電風扇慢慢轉
-  rect(ctx, "#31344c", 96, 110, 4, 24);
-  rect(ctx, "#31344c", 90, 134, 16, 3);
-  rect(ctx, "#44486a", 88, 96, 20, 20);
+  rect(ctx, "#31344c", 150, 110, 4, 24);
+  rect(ctx, "#31344c", 144, 134, 16, 3);
+  rect(ctx, "#44486a", 142, 96, 20, 20);
   const fan = Math.floor(t / 140) % 2;
-  rect(ctx, "#8d92b2", fan ? 90 : 97, fan ? 105 : 98, fan ? 16 : 2, fan ? 2 : 16);
+  rect(ctx, "#8d92b2", fan ? 144 : 151, fan ? 105 : 98, fan ? 16 : 2, fan ? 2 : 16);
 };
 
 const phone = (ctx: Ctx, t: number) => {
