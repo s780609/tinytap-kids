@@ -16,6 +16,8 @@ import {
   OUTFITS,
   PHOTO_BGS,
   SKINS,
+  STUDIO_BIOS,
+  STUDIO_JOB,
 } from "./girlData.ts";
 import type {
   AccessoryId,
@@ -30,6 +32,7 @@ import type {
   PhotoBgId,
   SkinId,
 } from "./girlData.ts";
+import { STUDIO_RATE } from "./constants.ts";
 import { createRng, mixSeed, pick, randInt } from "./rng.ts";
 
 export type { BodyType } from "./girlData.ts";
@@ -54,6 +57,8 @@ export interface Girl {
   job: string;
   photoBg: PhotoBgId;
   pickiness: number;
+  /** 個工（個人工作室）：走隱藏路線 */
+  studio: boolean;
   face: GirlFace;
   body: BodyType;
   outfit: OutfitId;
@@ -78,6 +83,7 @@ const ROLL = {
   accessory: 15,
   body: 16,
   outfit: 17,
+  studio: 18,
 } as const;
 
 const MIN_AGE = 22;
@@ -87,17 +93,19 @@ export function generateGirl(seed: number): Girl {
   const s = seed >>> 0;
   const roll = (key: keyof typeof ROLL) => createRng(mixSeed(s, ROLL[key]));
   const interest = pick(roll("interest"), INTERESTS);
+  const studio = roll("studio")() < STUDIO_RATE;
   return {
     seed: s,
     nickname: pick(roll("nickname"), NICKNAMES),
     age: randInt(roll("age"), MIN_AGE, MAX_AGE),
     distanceKm: randInt(roll("distance"), 1, 35),
-    bio: pick(roll("bio"), interest.bios),
+    bio: studio ? pick(roll("bio"), STUDIO_BIOS) : pick(roll("bio"), interest.bios),
     interest: interest.id,
     education: pick(roll("education"), EDUCATIONS).id,
-    job: pick(roll("job"), JOBS),
+    job: studio ? STUDIO_JOB : pick(roll("job"), JOBS),
     photoBg: pick(roll("photoBg"), PHOTO_BGS).id,
     pickiness: roll("pickiness")(),
+    studio,
     face: {
       hair: pick(roll("hair"), HAIRS).id,
       hairColor: pick(roll("hairColor"), HAIR_COLORS).id,

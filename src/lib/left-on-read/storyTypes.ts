@@ -1,5 +1,5 @@
 /**
- * 失敗劇情的資料型別。回覆選項只影響這一句怎麼說，不會改變結局。
+ * 失敗劇情的資料型別。回覆選項只影響這一句怎麼說，不會改變結局；只有 decision 那一句例外。
  */
 
 export type StoryCategory = "ghost" | "fade" | "pitch" | "quick";
@@ -19,6 +19,8 @@ export interface ReplyStep {
   wait?: StepWait;
   /** 2～3 句 */
   replies: readonly string[];
+  /** 選了第 choice 句就付 cost、走向這一局的結局 */
+  decision?: { choice: number; cost: number; endingId: string };
 }
 
 export interface FinalStep {

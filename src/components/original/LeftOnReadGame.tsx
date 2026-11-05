@@ -15,12 +15,13 @@ import { DexScreen } from "./screens/DexScreen";
 import { EveningScreen, MealScreen, type MealNote } from "./screens/EveningScreen";
 import { GraduationScreen } from "./screens/GraduationScreen";
 import IntroScreen from "./screens/IntroScreen";
+import { LadybugScreen } from "./screens/LadybugScreen";
 import { MatchScreen } from "./screens/MatchScreen";
 import MenuScreen from "./screens/MenuScreen";
 import { NightScreen } from "./screens/NightScreen";
 import { SwipeScreen } from "./screens/SwipeScreen";
 
-type Screen = "menu" | "intro" | "game" | "dex" | "graduation";
+type Screen = "menu" | "intro" | "game" | "dex" | "graduation" | "ladybug";
 
 /** 開場看完要去哪裡：新遊戲接著玩，重看就回選單 */
 type AfterIntro = "game" | "menu";
@@ -96,6 +97,16 @@ export default function LeftOnReadGame() {
   };
 
   // ---------- 遊戲動作 ----------
+
+  const reply = (chatId: number, choice: number) => {
+    audioManager.bubble();
+    const events = dispatch({ type: "reply", chatId, choice });
+    if (!events.some((e) => e.type === "gameEnding")) return;
+    // 走到結局這一局就結束了，圖鑑留著
+    commitSave(null, getSaveSnapshot().meta);
+    setPhone(null);
+    setScreen("ladybug");
+  };
 
   const closeChat = (chatId: number) => {
     const girlSeed = save.run?.chats.find((c) => c.id === chatId)?.girlSeed;
@@ -176,10 +187,7 @@ export default function LeftOnReadGame() {
                 audioManager.pop();
                 setPhone("list");
               }}
-              onReply={(choice) => {
-                audioManager.bubble();
-                dispatch({ type: "reply", chatId: chat.id, choice });
-              }}
+              onReply={(choice) => reply(chat.id, choice)}
               onFinish={() => closeChat(chat.id)}
             />
           );
@@ -251,7 +259,11 @@ export default function LeftOnReadGame() {
       case "intro":
         return <IntroScreen onDone={finishIntro} />;
       case "dex":
-        return <DexScreen dex={save.meta.dex} onBack={() => setScreen("menu")} />;
+        return (
+          <DexScreen dex={save.meta.dex} onBack={() => setScreen("menu")} onLadybug={() => setScreen("ladybug")} />
+        );
+      case "ladybug":
+        return <LadybugScreen onDone={() => setScreen("menu")} />;
       case "graduation":
         return (
           <GraduationScreen

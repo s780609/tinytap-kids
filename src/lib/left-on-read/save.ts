@@ -3,7 +3,7 @@
  * 壞資料一律修復或回傳 null，不丟例外。
  */
 
-import { DECK_SIZE, MAX_MONEY, START_MONEY } from "./constants.ts";
+import { DECK_SIZE, LADYBUG_ENDING_ID, MAX_MONEY, START_MONEY } from "./constants.ts";
 import type { Dex } from "./dex.ts";
 import { OPENER_KINDS, PHASES, drawMeal, seededRngs } from "./game.ts";
 import type { Phase, RunState } from "./game.ts";
@@ -142,7 +142,7 @@ export function parseMeta(raw: string | null): MetaState {
     if (isObject(data.dex)) {
       for (const [id, entry] of Object.entries(data.dex)) {
         // 只複製存在的劇情，__proto__ 這類名稱不會進入結果
-        if (!STORY_BY_ID[id] || !isObject(entry)) continue;
+        if ((!STORY_BY_ID[id] && id !== LADYBUG_ENDING_ID) || !isObject(entry)) continue;
         if (!isCount(entry.count) || entry.count < 1) continue;
         dex[id] = { count: entry.count, firstDayIndex: isCount(entry.firstDayIndex) ? entry.firstDayIndex : 0 };
       }

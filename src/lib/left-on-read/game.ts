@@ -11,6 +11,7 @@ import {
   MONTHLY_SALARY,
   NOODLE_PRICE,
   START_MONEY,
+  STUDIO_MATCH_P,
 } from "./constants.ts";
 import { isDexComplete, recordFailure } from "./dex.ts";
 import type { Dex } from "./dex.ts";
@@ -21,7 +22,7 @@ import { MEALS } from "./meals.ts";
 import type { Meal } from "./meals.ts";
 import { createRng, mixSeed, pick } from "./rng.ts";
 import type { Rng } from "./rng.ts";
-import { STORY_BY_ID } from "./stories/index.ts";
+import { STORY_BY_ID, STUDIO_STORY_ID } from "./stories/index.ts";
 import { isChatReady, isFinal, pickStory, renderLine } from "./story.ts";
 import type { Chat, OpenerKind } from "./storyTypes.ts";
 
@@ -66,7 +67,9 @@ export type GameEvent =
   | { type: "noMatch" }
   | { type: "chatAdvanced"; chatId: number }
   | { type: "chatEnded"; storyId: string; narration: string; paid: number; firstTime: boolean; antiFraud: boolean }
-  | { type: "dexCompleted" };
+  | { type: "dexCompleted" }
+  /** 這一局走到結局了，存檔由畫面清掉 */
+  | { type: "gameEnding"; endingId: string };
 
 export type RngFactory = (purpose: "meal" | "match" | "story", ...keys: number[]) => Rng;
 
@@ -164,6 +167,15 @@ export function advance(run: RunState, dex: Dex, action: GameAction, rngs?: RngF
       const step = storyStep(chat);
       if (!step || isFinal(step)) return same;
       if (!Number.isInteger(action.choice) || action.choice < 0 || action.choice >= step.replies.length) return same;
+      if (step.decision?.choice === action.choice) {
+        const { cost, endingId } = step.decision;
+        if (run.money < cost) return same;
+        return {
+          run: { ...run, money: run.money - cost, chats: run.chats.filter((c) => c !== chat) },
+          dex: recordFailure(dex, endingId, run.dayIndex),
+          events: [{ type: "gameEnding", endingId }],
+        };
+      }
       const next: Chat = {
         ...chat,
         stepIndex: chat.stepIndex + 1,
@@ -246,12 +258,9 @@ export function advance(run: RunState, dex: Dex, action: GameAction, rngs?: RngF
       const seed = deckSeed(run.runSeed, run.dayIndex, run.deckIndex);
       const girl = generateGirl(seed);
       const eduMod = EDUCATIONS.find((e) => e.id === girl.education)?.matchMod ?? 0;
-      const p = matchProbability({
-        pickiness: girl.pickiness,
-        rightStreak: run.rightStreak,
-        age: girl.age,
-        eduMod,
-      });
+      const p = girl.studio
+        ? STUDIO_MATCH_P
+        : matchProbability({ pickiness: girl.pickiness, rightStreak: run.rightStreak, age: girl.age, eduMod });
       if (rollMatch(p, factory("match", run.dayIndex, run.deckIndex))) {
         return {
           run: { ...run, deckIndex, rightStreak, phase: "matched", pendingMatchSeed: seed },
@@ -271,12 +280,12 @@ export function advance(run: RunState, dex: Dex, action: GameAction, rngs?: RngF
       const openerIndex = OPENER_KINDS.indexOf(action.opener);
       if (openerIndex < 0) return same;
       const girlSeed = run.pendingMatchSeed;
-      const story = pickStory(
-        action.opener,
-        dex,
-        run.chats.map((c) => c.storyId),
-        factory("story", girlSeed, openerIndex)
-      );
+      const activeStoryIds = run.chats.map((c) => c.storyId);
+      // 個工只走隱藏路線；同時已經有一條在聊，就當一般人抽
+      const story =
+        generateGirl(girlSeed).studio && !activeStoryIds.includes(STUDIO_STORY_ID)
+          ? STORY_BY_ID[STUDIO_STORY_ID]
+          : pickStory(action.opener, dex, activeStoryIds, factory("story", girlSeed, openerIndex));
       const chat: Chat = {
         id: run.nextChatId,
         girlSeed,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { RunState } from "@/lib/left-on-read/game";
 import { generateGirl, type Girl } from "@/lib/left-on-read/girl";
-import { STORY_BY_ID } from "@/lib/left-on-read/stories/index";
+import { STORIES, STORY_BY_ID } from "@/lib/left-on-read/stories/index";
 import { chatTranscript, isChatReady, isFinal, renderLine, type TranscriptLine } from "@/lib/left-on-read/story";
 import type { Chat } from "@/lib/left-on-read/storyTypes";
 import PixelCanvas from "../PixelCanvas";
@@ -193,6 +193,8 @@ export function ChatRoom({ run, chat, onReply, onFinish, onBack }: ChatRoomProps
               align="left"
               silent
               className="text-sm"
+              disabled={step.decision?.choice === choice && run.money < step.decision.cost}
+              sub={step.decision?.choice === choice && run.money < step.decision.cost ? "錢不夠" : undefined}
               onClick={() => onReply(choice)}
             >
               {renderLine(reply, girl)}
@@ -247,7 +249,9 @@ export function EndingScreen({ ending, onClose }: { ending: EndingInfo; onClose:
         ) : null}
         <div className="mt-5 border-t-2 border-dashed border-[#55587a] pt-3 text-center">
           <p className="text-xs text-[#a9abc9]">
-            {ending.firstTime ? "失敗圖鑑新增一筆" : "這一筆圖鑑上已經有了"}　{ending.collected} / {ending.total}
+            {STORIES.includes(story)
+              ? `${ending.firstTime ? "失敗圖鑑新增一筆" : "這一筆圖鑑上已經有了"}　${ending.collected} / ${ending.total}`
+              : "隱藏路線"}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-[#d8d9ea]">{story.dexQuip}</p>
         </div>

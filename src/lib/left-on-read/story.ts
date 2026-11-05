@@ -173,6 +173,7 @@ export function validateStory(story: Story): string[] {
         errors.push(`${where} 的回覆要 2～3 句`);
       } else {
         step.replies.forEach((reply, r) => errors.push(...placeholderErrors(reply, `${where} 回覆 ${r}`)));
+        if (step.decision && !step.replies[step.decision.choice]) errors.push(`${where} 的抉擇選項不存在`);
       }
     }
   });

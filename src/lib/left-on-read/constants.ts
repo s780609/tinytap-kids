@@ -18,3 +18,10 @@ export const GUANYU_AGE = 25;
 
 export const RUN_SAVE_KEY = "tinytap-left-on-read-run";
 export const META_SAVE_KEY = "tinytap-left-on-read-meta";
+
+/** 瓢蟲結局：1h2s 的價格、結局在圖鑑裡的 id */
+export const LADYBUG_COST = 3000;
+export const LADYBUG_ENDING_ID = "ladybug";
+/** 牌組裡有多少是個工，以及她們右滑後配對的機率（幾乎秒配） */
+export const STUDIO_RATE = 0.05;
+export const STUDIO_MATCH_P = 0.9;
