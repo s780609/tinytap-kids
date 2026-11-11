@@ -22,20 +22,26 @@ export interface DifficultyInfo {
   id: MemoryDifficulty;
   label: string;
   emoji: string;
-  /** 每局幾對（這一關的圖不夠時就全部用上） */
-  pairs: number;
   /** 翻錯時兩張牌亮多久才蓋回去（ms） */
   peekMs: number;
 }
 
 export const MEMORY_DIFFICULTIES: DifficultyInfo[] = [
-  { id: "easy", label: "簡單", emoji: "🐣", pairs: 6, peekMs: 1000 },
-  { id: "normal", label: "普通", emoji: "🐥", pairs: 8, peekMs: 900 },
-  { id: "hard", label: "困難", emoji: "🦅", pairs: 12, peekMs: 700 },
+  { id: "easy", label: "簡單", emoji: "🐣", peekMs: 1000 },
+  { id: "normal", label: "普通", emoji: "🐥", peekMs: 900 },
+  { id: "hard", label: "困難", emoji: "🦅", peekMs: 700 },
 ];
 
-export function pairsFor(itemCount: number, d: DifficultyInfo): number {
-  return Math.min(d.pairs, itemCount);
+/** 困難模式至少幾對 */
+const HARD_PAIRS = 12;
+
+/**
+ * 每局幾對：簡單就是這一關原本的對數，普通多 2 對，困難至少 12 對；
+ * 這一關的圖不夠時就全部用上。
+ */
+export function pairsFor(basePairs: number, itemCount: number, d: DifficultyInfo): number {
+  const want = d.id === "easy" ? basePairs : d.id === "normal" ? basePairs + 2 : Math.max(HARD_PAIRS, basePairs + 4);
+  return Math.min(want, itemCount);
 }
 
 /**

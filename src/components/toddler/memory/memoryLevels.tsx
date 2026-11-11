@@ -18,6 +18,8 @@ export interface MemoryLevel {
   title: string;
   emoji: string;
   color: string;
+  /** 原本（簡單）每局幾對 */
+  pairs: number;
   /** 翻開後圖佔牌面多大（0～1）；有背景的圖幾乎鋪滿整張牌 */
   iconScale: number;
   items: MemoryItem[];
@@ -50,16 +52,17 @@ const fishSceneItems: MemoryItem[] = FISHES.map((f) => ({
 }));
 
 export const MEMORY_LEVELS: MemoryLevel[] = [
-  { id: "farm", title: "農場", emoji: "🐄", color: "#8BC34A", iconScale: 0.66, items: animalItems("farm") },
-  { id: "zoo", title: "動物園", emoji: "🦁", color: "#FFA726", iconScale: 0.66, items: animalItems("zoo") },
-  { id: "dino", title: "恐龍", emoji: "🦖", color: "#66BB6A", iconScale: 0.86, items: dinoItems },
-  { id: "sea", title: "海裡的朋友", emoji: "🐳", color: "#29B6F6", iconScale: 0.7, items: seaItems },
-  { id: "fish", title: "海底世界", emoji: "🐠", color: "#5C6BC0", iconScale: 0.86, items: fishSceneItems },
+  { id: "farm", title: "農場", emoji: "🐄", color: "#8BC34A", pairs: 6, iconScale: 0.66, items: animalItems("farm") },
+  { id: "zoo", title: "動物園", emoji: "🦁", color: "#FFA726", pairs: 6, iconScale: 0.66, items: animalItems("zoo") },
+  { id: "dino", title: "恐龍", emoji: "🦖", color: "#66BB6A", pairs: 6, iconScale: 0.86, items: dinoItems },
+  { id: "sea", title: "海裡的朋友", emoji: "🐳", color: "#29B6F6", pairs: 6, iconScale: 0.7, items: seaItems },
+  { id: "fish", title: "海底世界", emoji: "🐠", color: "#5C6BC0", pairs: 6, iconScale: 0.86, items: fishSceneItems },
   {
     id: "mix",
     title: "大集合",
     emoji: "🌈",
     color: "#EC407A",
+    pairs: 8,
     iconScale: 0.66,
     items: [...animalItems("farm"), ...animalItems("zoo"), ...seaItems, ...dinoItems],
   },

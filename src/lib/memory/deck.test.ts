@@ -28,13 +28,16 @@ test("buildDeck：每次挑的種類與順序不一樣；圖不夠時就全部�
   assert.equal(buildDeck(["a", "b", "c"], 6, seeded(3)).length, 6);
 });
 
-test("難度：簡單 6 對、普通 8 對、困難 12 對，越難翻錯時亮越短；圖不夠就全用上", () => {
-  assert.deepEqual(MEMORY_DIFFICULTIES.map((d) => d.pairs), [6, 8, 12]);
-  const peeks = MEMORY_DIFFICULTIES.map((d) => d.peekMs);
-  assert.ok(peeks[0] > peeks[1] && peeks[1] > peeks[2]);
-  const hard = MEMORY_DIFFICULTIES[2];
-  assert.equal(pairsFor(8, hard), 8);
-  assert.equal(pairsFor(40, hard), 12);
+test("難度：簡單就是原本的對數與速度，普通 +2 對、困難至少 12 對；圖不夠就全用上", () => {
+  const [easy, normal, hard] = MEMORY_DIFFICULTIES;
+  assert.equal(easy.peekMs, 1000);
+  assert.ok(easy.peekMs > normal.peekMs && normal.peekMs > hard.peekMs);
+  // 一般關卡原本 6 對
+  assert.deepEqual([easy, normal, hard].map((d) => pairsFor(6, 40, d)), [6, 8, 12]);
+  // 大集合原本 8 對
+  assert.deepEqual([easy, normal, hard].map((d) => pairsFor(8, 40, d)), [8, 10, 12]);
+  assert.equal(pairsFor(6, 8, hard), 8);
+  assert.equal(pairsFor(6, 6, normal), 6);
 });
 
 test("bestGrid：直向排 4 欄、橫向排成寬的；放得下而且不會超出", () => {
