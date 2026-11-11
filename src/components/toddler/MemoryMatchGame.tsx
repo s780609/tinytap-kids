@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { audioManager } from "@/lib/audio/AudioManager";
 import { useSettings } from "@/lib/settings/SettingsContext";
-import { buildDeck } from "@/lib/memory/deck";
+import { MEMORY_DIFFICULTIES, bestGrid, buildDeck, pairsFor, type MemoryDifficulty } from "@/lib/memory/deck";
 import { ParticleEngine } from "@/lib/particles/ParticleEngine";
 import ParticleCanvas from "@/components/baby/ParticleCanvas";
 import { MEMORY_LEVELS, type MemoryItem, type MemoryLevel } from "@/components/toddler/memory/memoryLevels";
@@ -15,13 +15,18 @@ interface Card {
   matched: boolean;
 }
 
-function dealCards(level: MemoryLevel): Card[] {
+function dealCards(level: MemoryLevel, pairs: number): Card[] {
   const byId = new Map(level.items.map((it) => [it.id, it]));
   return buildDeck(
     level.items.map((it) => it.id),
-    level.pairs
+    pairs
   ).map((itemId, idx) => ({ id: idx, item: byId.get(itemId)!, flipped: false, matched: false }));
 }
+
+/** 記住上次選的難度（只是方便，讀不到就用簡單） */
+const DIFFICULTY_KEY = "tinytap-memory-difficulty";
+/** 牌與牌的間距（px） */
+const GAP = 8;
 
 export default function MemoryMatchGame() {
   const { settings } = useSettings();
@@ -31,22 +36,61 @@ export default function MemoryMatchGame() {
   const [flippedIds, setFlippedIds] = useState<number[]>([]);
   const [matchCount, setMatchCount] = useState(0);
   const [gameComplete, setGameComplete] = useState(false);
-  /** 這次玩過關的關卡，選單上打星星 */
+  /** 這次玩過關的「關卡:難度」，選單上打星星 */
   const [cleared, setCleared] = useState<string[]>([]);
+  const [difficulty, setDifficulty] = useState<MemoryDifficulty>("easy");
+  /** 牌桌可用的空間，用來決定排幾欄、每張多大 */
+  const [area, setArea] = useState({ w: 0, h: 0 });
   const lockRef = useRef(false);
   const engineRef = useRef<ParticleEngine | null>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
 
+  const diff = MEMORY_DIFFICULTIES.find((d) => d.id === difficulty)!;
   const level = levelIdx === null ? null : MEMORY_LEVELS[levelIdx];
-  const totalPairs = level ? Math.min(level.pairs, level.items.length) : 0;
+  const totalPairs = level ? pairsFor(level.items.length, diff) : 0;
 
-  const startLevel = useCallback((i: number) => {
-    setLevelIdx(i);
-    setCards(dealCards(MEMORY_LEVELS[i]));
-    setFlippedIds([]);
-    setMatchCount(0);
-    setGameComplete(false);
-    lockRef.current = false;
+  const startLevel = useCallback(
+    (i: number) => {
+      setLevelIdx(i);
+      setCards(dealCards(MEMORY_LEVELS[i], diff.pairs));
+      setFlippedIds([]);
+      setMatchCount(0);
+      setGameComplete(false);
+      lockRef.current = false;
+    },
+    [diff.pairs]
+  );
+
+  const chooseDifficulty = (d: MemoryDifficulty) => {
+    audioManager.pop();
+    setDifficulty(d);
+    try {
+      localStorage.setItem(DIFFICULTY_KEY, d);
+    } catch {
+      // 無痕模式等存不了就算了
+    }
+  };
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        const saved = localStorage.getItem(DIFFICULTY_KEY);
+        if (MEMORY_DIFFICULTIES.some((d) => d.id === saved)) setDifficulty(saved as MemoryDifficulty);
+      } catch {
+        // 讀不到就用預設
+      }
+    }, 0);
+    return () => clearTimeout(id);
   }, []);
+
+  // 量牌桌的大小：轉橫轉直、換關卡時重新排
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setArea({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [levelIdx]);
 
   const toMenu = () => {
     audioManager.pop();
@@ -94,7 +138,8 @@ export default function MemoryMatchGame() {
             setMatchCount(newCount);
 
             if (newCount >= totalPairs) {
-              setCleared((prev) => (prev.includes(level.id) ? prev : [...prev, level.id]));
+              const key = `${level.id}:${difficulty}`;
+              setCleared((prev) => (prev.includes(key) ? prev : [...prev, key]));
               setTimeout(() => {
                 setGameComplete(true);
                 audioManager.chime();
@@ -110,11 +155,11 @@ export default function MemoryMatchGame() {
             );
             setFlippedIds([]);
             lockRef.current = false;
-          }, 1000);
+          }, diff.peekMs);
         }
       }
     },
-    [cards, flippedIds, matchCount, level, totalPairs]
+    [cards, flippedIds, matchCount, level, totalPairs, difficulty, diff.peekMs]
   );
 
   // ---------- 選關卡 ----------
@@ -123,6 +168,20 @@ export default function MemoryMatchGame() {
       <div className="flex flex-col items-center h-screen overflow-y-auto p-6 pt-20 pb-10 gap-4 select-none">
         <h1 className="text-3xl md:text-4xl font-black text-[#4FC3F7] animate-bounce-in">🃏 記憶翻牌</h1>
         <p className="text-lg font-bold text-[#4A4A4A]">選一關，找出一樣的配對！</p>
+        <div className="flex gap-2 rounded-full bg-white/80 p-1.5 shadow">
+          {MEMORY_DIFFICULTIES.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => chooseDifficulty(d.id)}
+              className={`px-4 py-2 rounded-full text-base font-black transition-colors active:scale-95 ${
+                d.id === difficulty ? "bg-[#4FC3F7] text-white shadow" : "text-[#0288D1]"
+              }`}
+            >
+              {d.emoji} {d.label}
+            </button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-2xl">
           {MEMORY_LEVELS.map((lv, i) => (
             <button
@@ -146,8 +205,8 @@ export default function MemoryMatchGame() {
                   </span>
                 ))}
               </span>
-              <span className="mt-1 text-xs font-bold text-white/90">{lv.pairs} 對</span>
-              {cleared.includes(lv.id) && (
+              <span className="mt-1 text-xs font-bold text-white/90">{pairsFor(lv.items.length, diff)} 對</span>
+              {cleared.includes(`${lv.id}:${difficulty}`) && (
                 <span className="absolute top-1 right-2 text-3xl drop-shadow animate-bounce-in">⭐</span>
               )}
             </button>
@@ -159,15 +218,18 @@ export default function MemoryMatchGame() {
 
   // ---------- 翻牌 ----------
   const next = levelIdx + 1 < MEMORY_LEVELS.length ? levelIdx + 1 : null;
-  const cols = 4;
+  const grid = bestGrid(cards.length, area.w, area.h, GAP);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 gap-3 relative">
+    <div className="flex flex-col items-center h-dvh p-3 pt-4 gap-2 relative overflow-hidden">
       <ParticleCanvas engineRef={engineRef} />
 
-      <div className="z-10 flex w-full max-w-lg items-center justify-between gap-2 pl-16">
+      <div className="z-10 flex w-full max-w-3xl items-center justify-between gap-2 pl-16">
         <p className="text-xl md:text-2xl font-black" style={{ color: level.color }}>
           {level.emoji} {level.title}
+          <span className="ml-2 text-base text-[#FF69B4]">
+            {matchCount} / {totalPairs} 對
+          </span>
         </p>
         <button
           type="button"
@@ -178,37 +240,39 @@ export default function MemoryMatchGame() {
         </button>
       </div>
 
-      <p className="text-lg font-semibold text-[#FF69B4] z-10">
-        {matchCount} / {totalPairs} 對
-      </p>
-
-      <div
-        className="grid gap-2.5 md:gap-4 z-10 w-full max-w-lg"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-      >
-        {cards.map((card) => {
-          const isFlipped = card.flipped || card.matched;
-          return (
-            <button
-              key={card.id}
-              className={`
-                aspect-square rounded-2xl transition-all duration-300 select-none overflow-hidden
-                flex items-center justify-center
-                ${card.matched ? "opacity-70 scale-95" : "active:scale-95 cursor-pointer"}
-                ${!isFlipped ? "shadow-lg" : "bg-white shadow-md"}
-              `}
-              style={isFlipped ? undefined : { backgroundColor: level.color }}
-              onPointerDown={(e) => handleCardTap(card.id, e)}
-              disabled={card.matched}
-            >
-              {isFlipped ? (
-                <div className="animate-bounce-in flex items-center justify-center">{card.item.render(level.iconSize)}</div>
-              ) : (
-                <span className="text-3xl md:text-4xl select-none">❓</span>
-              )}
-            </button>
-          );
-        })}
+      <div ref={areaRef} className="z-10 flex-1 min-h-0 w-full flex items-center justify-center">
+        <div
+          className="grid"
+          style={{ gap: GAP, gridTemplateColumns: `repeat(${grid.cols}, ${grid.size}px)`, gridAutoRows: `${grid.size}px` }}
+        >
+          {cards.map((card) => {
+            const isFlipped = card.flipped || card.matched;
+            return (
+              <button
+                key={card.id}
+                className={`
+                  aspect-square rounded-2xl transition-all duration-300 select-none overflow-hidden
+                  flex items-center justify-center
+                  ${card.matched ? "opacity-70 scale-95" : "active:scale-95 cursor-pointer"}
+                  ${!isFlipped ? "shadow-lg" : "bg-white shadow-md"}
+                `}
+                style={isFlipped ? undefined : { backgroundColor: level.color }}
+                onPointerDown={(e) => handleCardTap(card.id, e)}
+                disabled={card.matched}
+              >
+                {isFlipped ? (
+                  <div className="animate-bounce-in flex items-center justify-center">
+                    {card.item.render(Math.round(grid.size * level.iconScale))}
+                  </div>
+                ) : (
+                  <span className="select-none" style={{ fontSize: grid.size * 0.36 }}>
+                    ❓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {gameComplete && (
