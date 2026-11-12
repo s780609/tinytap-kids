@@ -47,13 +47,13 @@ export default function MemoryMatchGame() {
 
   const diff = MEMORY_DIFFICULTIES.find((d) => d.id === difficulty)!;
   const level = levelIdx === null ? null : MEMORY_LEVELS[levelIdx];
-  const totalPairs = level ? pairsFor(level.pairs, level.items.length, diff) : 0;
+  const totalPairs = level ? pairsFor(level.items.length, diff) : 0;
 
   const startLevel = useCallback(
     (i: number) => {
       setLevelIdx(i);
       const lv = MEMORY_LEVELS[i];
-      setCards(dealCards(lv, pairsFor(lv.pairs, lv.items.length, diff)));
+      setCards(dealCards(lv, pairsFor(lv.items.length, diff)));
       setFlippedIds([]);
       setMatchCount(0);
       setGameComplete(false);
@@ -206,7 +206,7 @@ export default function MemoryMatchGame() {
                   </span>
                 ))}
               </span>
-              <span className="mt-1 text-xs font-bold text-white/90">{pairsFor(lv.pairs, lv.items.length, diff)} 對</span>
+              <span className="mt-1 text-xs font-bold text-white/90">{pairsFor(lv.items.length, diff)} 對</span>
               {cleared.includes(`${lv.id}:${difficulty}`) && (
                 <span className="absolute top-1 right-2 text-3xl drop-shadow animate-bounce-in">⭐</span>
               )}

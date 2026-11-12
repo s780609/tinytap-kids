@@ -3,7 +3,7 @@ import type { FishId } from "@/lib/fish-puzzle/fishes";
 import { Cheek, Eye } from "@/components/toddler/dino/DinoArt";
 
 /*
- * 六張魚類拼圖的圖（座標 0~300 的正方形，含海底背景）。
+ * 十二張魚類拼圖的圖（座標 0~300 的正方形，含海底背景）。
  * 跟恐龍圖一樣不用 gradient / clipPath 這類要 id 的東西，同一張圖切成很多塊也不會互相干擾。
  */
 
@@ -293,6 +293,202 @@ function BlueTang() {
   );
 }
 
+function Jellyfish() {
+  const bell = "#F48FB1";
+  const tentacles = [112, 132, 152, 172, 192];
+  return (
+    <g>
+      <Sea water="#5C6BC0" top="#9FA8DA" sand="#C5CAE9" />
+      <Seaweed x={30} h={100} color="#26A69A" />
+      <Seaweed x={270} h={130} color="#26A69A" />
+      {/* 遠處的小水母 */}
+      <path d="M56,92 Q66,70 76,92 Z" fill="#CE93D8" opacity={0.7} />
+      <path d="M60,92 q-2,10 0,18 M66,92 q2,10 0,18 M72,92 q-2,10 0,18" stroke="#CE93D8" strokeWidth={2} fill="none" opacity={0.7} />
+      <path d="M232,200 Q244,176 256,200 Z" fill="#80DEEA" opacity={0.7} />
+      <Bubbles list={[{ x: 240, y: 80, r: 6 }, { x: 252, y: 62, r: 4 }, { x: 90, y: 200, r: 4 }]} />
+
+      {/* 飄飄的觸手 */}
+      {tentacles.map((x, i) => (
+        <path
+          key={x}
+          d={`M${x},170 q${i % 2 ? 12 : -12},20 0,40 q${i % 2 ? -12 : 12},20 0,40`}
+          stroke={i % 2 ? "#F8BBD0" : "#CE93D8"}
+          strokeWidth={7}
+          fill="none"
+          strokeLinecap="round"
+        />
+      ))}
+      {/* 圓圓的傘 */}
+      <path d="M86,172 Q86,82 152,82 Q218,82 218,172 Q200,162 184,172 Q168,162 152,172 Q136,162 120,172 Q104,162 86,172 Z" fill={bell} stroke={OUTLINE} strokeWidth={3} strokeLinejoin="round" />
+      <path d="M110,118 Q124,98 146,96" stroke="white" strokeWidth={6} fill="none" strokeLinecap="round" opacity={0.6} />
+      <Eye x={130} y={134} r={11} />
+      <Eye x={174} y={134} r={11} />
+      <path d="M142,154 Q152,162 162,154" stroke={OUTLINE} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <Cheek x={116} y={152} />
+      <Cheek x={188} y={152} />
+    </g>
+  );
+}
+
+function SeaTurtle() {
+  const skin = "#AED581";
+  return (
+    <g>
+      <Sea water="#29B6F6" top="#81D4FA" />
+      <Seaweed x={34} h={120} color="#43A047" />
+      <path d="M250,268 L250,226 M250,246 L232,224 M250,240 L268,214" stroke="#FF8A65" strokeWidth={8} strokeLinecap="round" />
+      <Starfish x={190} y={278} color="#FFD54F" />
+      <Bubbles list={[{ x: 70, y: 70, r: 5 }, { x: 82, y: 54, r: 3 }, { x: 236, y: 90, r: 5 }]} />
+
+      {/* 四隻鰭腳 */}
+      <ellipse cx={104} cy={108} rx={34} ry={14} fill={skin} stroke={OUTLINE} strokeWidth={3} transform="rotate(-30 104 108)" />
+      <ellipse cx={196} cy={108} rx={34} ry={14} fill={skin} stroke={OUTLINE} strokeWidth={3} transform="rotate(30 196 108)" />
+      <ellipse cx={110} cy={200} rx={24} ry={11} fill={skin} stroke={OUTLINE} strokeWidth={3} transform="rotate(30 110 200)" />
+      <ellipse cx={190} cy={200} rx={24} ry={11} fill={skin} stroke={OUTLINE} strokeWidth={3} transform="rotate(-30 190 200)" />
+      {/* 頭 */}
+      <ellipse cx={150} cy={80} rx={26} ry={24} fill={skin} stroke={OUTLINE} strokeWidth={3} />
+      <Eye x={140} y={76} r={7} />
+      <Eye x={162} y={76} r={7} />
+      <path d="M142,92 Q151,98 160,92" stroke={OUTLINE} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+      {/* 龜殼與花紋 */}
+      <ellipse cx={150} cy={156} rx={60} ry={64} fill="#558B2F" stroke={OUTLINE} strokeWidth={3} />
+      <polygon points="150,118 176,134 176,166 150,182 124,166 124,134" fill="#8BC34A" stroke="#33691E" strokeWidth={3} />
+      <path d="M150,118 L150,96 M176,134 L198,122 M176,166 L198,180 M150,182 L150,214 M124,166 L102,180 M124,134 L102,122" stroke="#33691E" strokeWidth={3} strokeLinecap="round" />
+      <Cheek x={134} y={88} />
+      <Cheek x={168} y={88} />
+    </g>
+  );
+}
+
+function Stingray() {
+  const body = "#90A4AE";
+  return (
+    <g>
+      <Sea water="#4DD0E1" top="#B2EBF2" sand="#FFE082" />
+      <Seaweed x={270} h={100} color="#26A69A" />
+      <ellipse cx={60} cy={272} rx={20} ry={7} fill="#FFCA28" />
+      <Starfish x={220} y={280} color="#FF8A65" />
+      <Bubbles list={[{ x: 60, y: 70, r: 6 }, { x: 72, y: 52, r: 4 }, { x: 250, y: 70, r: 4 }]} />
+
+      {/* 長長的尾巴 */}
+      <path d="M150,196 Q160,240 200,262" stroke={body} strokeWidth={6} fill="none" strokeLinecap="round" />
+      {/* 菱形的身體（像風箏） */}
+      <path d="M150,82 Q196,104 262,140 Q206,168 150,204 Q94,168 38,140 Q104,104 150,82 Z" fill={body} stroke={OUTLINE} strokeWidth={3} strokeLinejoin="round" />
+      <path d="M150,100 Q186,118 230,140 Q190,158 150,184 Q110,158 70,140 Q114,118 150,100 Z" fill="#B0BEC5" />
+      <circle cx={104} cy={140} r={4} fill="#78909C" />
+      <circle cx={196} cy={140} r={4} fill="#78909C" />
+      <circle cx={122} cy={160} r={3} fill="#78909C" />
+      <circle cx={178} cy={160} r={3} fill="#78909C" />
+      <Eye x={134} y={122} r={9} />
+      <Eye x={166} y={122} r={9} />
+      <path d="M140,146 Q150,154 160,146" stroke={OUTLINE} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <Cheek x={122} y={138} />
+      <Cheek x={178} y={138} />
+    </g>
+  );
+}
+
+function Octopus() {
+  const body = "#AB47BC";
+  const legs = [96, 122, 150, 178, 204];
+  return (
+    <g>
+      <Sea water="#26C6DA" top="#80DEEA" sand="#FFECB3" />
+      <path d="M40,268 L40,224 M40,244 L22,222 M40,238 L58,212" stroke="#FF7043" strokeWidth={8} strokeLinecap="round" />
+      <ellipse cx={262} cy={268} rx={22} ry={12} fill="#BCAAA4" />
+      <Bubbles list={[{ x: 230, y: 70, r: 6 }, { x: 242, y: 52, r: 4 }, { x: 70, y: 90, r: 4 }]} />
+
+      {/* 捲捲的腳 */}
+      {legs.map((x, i) => (
+        <path
+          key={x}
+          d={`M${x},180 Q${x + (i - 2) * 14},236 ${x + (i - 2) * 24 + (i % 2 ? 14 : -14)},244`}
+          stroke={body}
+          strokeWidth={16}
+          fill="none"
+          strokeLinecap="round"
+        />
+      ))}
+      {legs.map((x, i) => (
+        <circle key={`s${x}`} cx={x + (i - 2) * 10} cy={220} r={3.5} fill="#E1BEE7" />
+      ))}
+      {/* 圓圓的頭 */}
+      <ellipse cx={150} cy={132} rx={66} ry={64} fill={body} stroke={OUTLINE} strokeWidth={3} />
+      <circle cx={118} cy={96} r={7} fill="#CE93D8" />
+      <circle cx={186} cy={92} r={5} fill="#CE93D8" />
+      <circle cx={196} cy={112} r={4} fill="#CE93D8" />
+      <Eye x={128} y={140} r={13} />
+      <Eye x={172} y={140} r={13} />
+      <path d="M138,166 Q150,176 162,166" stroke={OUTLINE} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <Cheek x={110} y={164} />
+      <Cheek x={190} y={164} />
+    </g>
+  );
+}
+
+function Swordfish() {
+  const body = "#3949AB";
+  return (
+    <g>
+      <Sea water="#0277BD" top="#4FC3F7" sand="#FFE0B2" />
+      <Seaweed x={36} h={90} color="#26A69A" />
+      <Seaweed x={260} h={110} color="#26A69A" />
+      <Bubbles list={[{ x: 70, y: 70, r: 5 }, { x: 82, y: 54, r: 3 }, { x: 220, y: 230, r: 5 }]} />
+
+      {/* 尾巴與高高的背鰭 */}
+      <path d="M62,150 L22,106 Q36,150 22,194 Z" fill={body} stroke={OUTLINE} strokeWidth={3} strokeLinejoin="round" />
+      <path d="M110,124 Q118,62 160,52 Q150,90 172,122 Z" fill={body} stroke={OUTLINE} strokeWidth={3} strokeLinejoin="round" />
+      {/* 長長的劍 */}
+      <path d="M220,144 L294,138 L222,154 Z" fill="#B0BEC5" stroke={OUTLINE} strokeWidth={2.5} strokeLinejoin="round" />
+      {/* 身體 */}
+      <path d="M54,150 Q100,108 170,116 Q214,122 230,148 Q214,174 170,182 Q100,190 54,150 Z" fill={body} stroke={OUTLINE} strokeWidth={3} />
+      <path d="M78,160 Q130,186 222,156 Q206,172 170,180 Q110,188 78,160 Z" fill="#C5CAE9" />
+      <path d="M140,170 L126,206 L162,174 Z" fill="#283593" />
+      <Eye x={204} y={140} r={9} />
+      <path d="M206,160 Q214,164 222,158" stroke={OUTLINE} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <Cheek x={196} y={156} />
+    </g>
+  );
+}
+
+function Crab() {
+  const shell = "#EF5350";
+  return (
+    <g>
+      <Sea water="#81D4FA" top="#E1F5FE" sand="#FFE082" />
+      <path d="M0,232 Q75,222 150,232 Q225,242 300,228 L300,300 L0,300 Z" fill="#FFE082" />
+      <ellipse cx={50} cy={270} rx={18} ry={9} fill="#F8BBD0" />
+      <Starfish x={250} y={262} color="#FFB74D" />
+      <Seaweed x={280} h={80} color="#43A047" />
+      <Bubbles list={[{ x: 70, y: 70, r: 6 }, { x: 82, y: 52, r: 4 }, { x: 236, y: 80, r: 5 }]} />
+
+      {/* 腳 */}
+      {[0, 1, 2].map((i) => (
+        <g key={i}>
+          <path d={`M${110 - i * 4},${190 + i * 12} q-26,6 -36,${24 + i * 4}`} stroke={shell} strokeWidth={8} fill="none" strokeLinecap="round" />
+          <path d={`M${190 + i * 4},${190 + i * 12} q26,6 36,${24 + i * 4}`} stroke={shell} strokeWidth={8} fill="none" strokeLinecap="round" />
+        </g>
+      ))}
+      {/* 大鉗子 */}
+      <path d="M104,170 Q76,150 70,120" stroke={shell} strokeWidth={10} fill="none" strokeLinecap="round" />
+      <path d="M196,170 Q224,150 230,120" stroke={shell} strokeWidth={10} fill="none" strokeLinecap="round" />
+      <path d="M70,124 Q46,110 54,82 Q62,96 74,94 Q72,80 84,70 Q96,100 70,124 Z" fill={shell} stroke={OUTLINE} strokeWidth={3} strokeLinejoin="round" />
+      <path d="M230,124 Q254,110 246,82 Q238,96 226,94 Q228,80 216,70 Q204,100 230,124 Z" fill={shell} stroke={OUTLINE} strokeWidth={3} strokeLinejoin="round" />
+      {/* 殼 */}
+      <ellipse cx={150} cy={188} rx={62} ry={42} fill={shell} stroke={OUTLINE} strokeWidth={3} />
+      <circle cx={120} cy={176} r={5} fill="#E57373" />
+      <circle cx={182} cy={176} r={4} fill="#E57373" />
+      {/* 站在上面的眼睛 */}
+      <path d="M134,150 L132,124 M166,150 L168,124" stroke={shell} strokeWidth={6} strokeLinecap="round" />
+      <Eye x={132} y={118} r={10} />
+      <Eye x={168} y={118} r={10} />
+      <path d="M138,198 Q150,208 162,198" stroke={OUTLINE} strokeWidth={3} fill="none" strokeLinecap="round" />
+      <Cheek x={116} y={196} />
+      <Cheek x={184} y={196} />
+    </g>
+  );
+}
+
 const SCENES: Record<FishId, () => React.JSX.Element> = {
   clownfish: Clownfish,
   pufferfish: Pufferfish,
@@ -300,6 +496,12 @@ const SCENES: Record<FishId, () => React.JSX.Element> = {
   seahorse: Seahorse,
   anglerfish: Anglerfish,
   bluetang: BlueTang,
+  jellyfish: Jellyfish,
+  seaturtle: SeaTurtle,
+  stingray: Stingray,
+  octopus: Octopus,
+  swordfish: Swordfish,
+  crab: Crab,
 };
 
 /** 整張圖或其中一塊（view 是要裁出來的範圍，座標同 0~300 的原圖） */

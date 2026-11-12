@@ -14,6 +14,14 @@ import GiraffeSvg from "./GiraffeSvg";
 import ZebraSvg from "./ZebraSvg";
 import TigerSvg from "./TigerSvg";
 import BearSvg from "./BearSvg";
+import HorseSvg from "./HorseSvg";
+import GoatSvg from "./GoatSvg";
+import MouseSvg from "./MouseSvg";
+import TurkeySvg from "./TurkeySvg";
+import HippoSvg from "./HippoSvg";
+import KoalaSvg from "./KoalaSvg";
+import FoxSvg from "./FoxSvg";
+import CrocodileSvg from "./CrocodileSvg";
 import type { ComponentType } from "react";
 
 export { CatSvg, DogSvg, CowSvg, DuckSvg, LionSvg, ElephantSvg };
@@ -46,4 +54,12 @@ export const ANIMALS: AnimalInfo[] = [
   { name: "zebra", label: "斑馬", component: ZebraSvg, color: "#FAFAFA", group: "zoo" },
   { name: "tiger", label: "老虎", component: TigerSvg, color: "#FF9800", group: "zoo" },
   { name: "bear", label: "熊", component: BearSvg, color: "#795548", group: "zoo" },
+  { name: "horse", label: "小馬", component: HorseSvg, color: "#A1887F", group: "farm" },
+  { name: "goat", label: "山羊", component: GoatSvg, color: "#FAFAFA", group: "farm" },
+  { name: "mouse", label: "老鼠", component: MouseSvg, color: "#CFD8DC", group: "farm" },
+  { name: "turkey", label: "火雞", component: TurkeySvg, color: "#8D6E63", group: "farm" },
+  { name: "hippo", label: "河馬", component: HippoSvg, color: "#B39DDB", group: "zoo" },
+  { name: "koala", label: "無尾熊", component: KoalaSvg, color: "#B0BEC5", group: "zoo" },
+  { name: "fox", label: "狐狸", component: FoxSvg, color: "#FF7043", group: "zoo" },
+  { name: "crocodile", label: "鱷魚", component: CrocodileSvg, color: "#66BB6A", group: "zoo" },
 ];

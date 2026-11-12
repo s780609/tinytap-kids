@@ -28,16 +28,12 @@ test("buildDeck：每次挑的種類與順序不一樣；圖不夠時就全部�
   assert.equal(buildDeck(["a", "b", "c"], 6, seeded(3)).length, 6);
 });
 
-test("難度：簡單就是原本的對數與速度，普通 +2 對、困難至少 12 對；圖不夠就全用上", () => {
+test("難度：每一關都是簡單 8 對、普通 10 對、困難 12 對；圖不夠就全用上", () => {
   const [easy, normal, hard] = MEMORY_DIFFICULTIES;
   assert.equal(easy.peekMs, 1000);
   assert.ok(easy.peekMs > normal.peekMs && normal.peekMs > hard.peekMs);
-  // 一般關卡原本 6 對
-  assert.deepEqual([easy, normal, hard].map((d) => pairsFor(6, 40, d)), [6, 8, 12]);
-  // 大集合原本 8 對
-  assert.deepEqual([easy, normal, hard].map((d) => pairsFor(8, 40, d)), [8, 10, 12]);
-  assert.equal(pairsFor(6, 8, hard), 8);
-  assert.equal(pairsFor(6, 6, normal), 6);
+  assert.deepEqual([easy, normal, hard].map((d) => pairsFor(40, d)), [8, 10, 12]);
+  assert.equal(pairsFor(9, hard), 9);
 });
 
 test("bestGrid：直向排 4 欄、橫向排成寬的；放得下而且不會超出", () => {
@@ -59,4 +55,28 @@ test("bestGrid：直向排 4 欄、橫向排成寬的；放得下而且不會超
   // 12 張在正方形空間：4×3 或 3×4，不要 5 欄留 3 個空格
   const sq = bestGrid(12, 400, 400, 8);
   assert.equal(sq.cols * sq.rows, 12);
+});
+
+test("bestGrid：手機直向的 16 / 20 / 24 張排成每列都滿，最後一列不會凸一張", () => {
+  // iPhone 直向的牌桌大約 396×760
+  for (const [n, cols] of [
+    [16, 4],
+    [20, 4],
+    [24, 4],
+  ]) {
+    const g = bestGrid(n, 396, 760, 8);
+    assert.equal(g.cols * g.rows, n, `${n} 張排成 ${g.cols}×${g.rows}，最後一列不滿`);
+    assert.equal(g.cols, cols);
+  }
+  // 橫向也要排滿
+  for (const n of [16, 20, 24]) {
+    const g = bestGrid(n, 800, 320, 8);
+    assert.equal(g.cols * g.rows, n, `橫向 ${n} 張排成 ${g.cols}×${g.rows}`);
+  }
+});
+
+test("bestGrid：排滿會讓牌小太多時，寧可最後一列不滿", () => {
+  // 14 張只能排成 2×7 或 7×2，在正方形空間裡牌會小很多
+  const g = bestGrid(14, 400, 400, 8);
+  assert.ok(g.size > 60, `牌太小：${g.size}`);
 });
