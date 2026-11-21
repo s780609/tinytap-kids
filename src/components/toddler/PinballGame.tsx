@@ -85,6 +85,39 @@ function hintArrow(ctx: CanvasRenderingContext2D, x: number, y: number, angle: n
   ctx.restore();
 }
 
+/** 檯面外框：左右直線加上方半圓（檯面座標） */
+function tableOutline(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.moveTo(10, TABLE_H);
+  ctx.lineTo(10, 200);
+  ctx.arc(200, 200, 190, Math.PI, Math.PI * 2);
+  ctx.lineTo(390, TABLE_H);
+  ctx.closePath();
+}
+
+/** 檯面上會一閃一閃的小星星（固定位置，伺服器與瀏覽器一致） */
+const TWINKLES = Array.from({ length: 26 }, (_, i) => {
+  const a = i * 2.39996;
+  const r = Math.sqrt((i + 0.5) / 26);
+  return {
+    x: 185 + Math.cos(a) * r * 160,
+    y: 330 + Math.sin(a) * r * 260,
+    size: 1.5 + (i % 3),
+    phase: i * 1.7,
+  };
+}).filter((t) => t.x > 22 && t.x < 350 && t.y > 60 && t.y < 600);
+
+/** 四角星芒 */
+function sparkle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.quadraticCurveTo(x, y, x - r, y);
+  ctx.quadraticCurveTo(x, y, x, y - r);
+  ctx.closePath();
+}
+
 function starPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
@@ -208,23 +241,48 @@ export default function PinballGame() {
     if (!ctx) return null;
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
 
-    // 太空背景
+    // 太空背景：深藍到紫，四周有星雲
     const bg = ctx.createLinearGradient(0, 0, 0, view.h);
-    bg.addColorStop(0, "#05071A");
-    bg.addColorStop(1, "#1A0B3D");
+    bg.addColorStop(0, "#030516");
+    bg.addColorStop(0.55, "#0D0A2E");
+    bg.addColorStop(1, "#1E0B3F");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, view.w, view.h);
+    const glow = (x: number, y: number, r: number, color: string) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    };
+    const big = Math.max(view.w, view.h);
+    glow(view.w * 0.05, view.h * 0.2, big * 0.45, "rgba(124,77,255,0.22)");
+    glow(view.w * 0.95, view.h * 0.75, big * 0.5, "rgba(255,64,129,0.16)");
+    glow(view.w * 0.8, view.h * 0.05, big * 0.3, "rgba(0,229,255,0.12)");
     let seed = 7;
     const rand = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
-    for (let i = 0; i < 140; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${0.25 + rand() * 0.6})`;
+    const starColors = ["255,255,255", "200,230,255", "255,228,200", "230,210,255"];
+    for (let i = 0; i < 220; i++) {
+      ctx.fillStyle = `rgba(${starColors[i % 4]},${0.2 + rand() * 0.7})`;
       ctx.beginPath();
-      ctx.arc(rand() * view.w, rand() * view.h, rand() * 1.4 + 0.3, 0, Math.PI * 2);
+      ctx.arc(rand() * view.w, rand() * view.h, rand() * 1.3 + 0.3, 0, Math.PI * 2);
       ctx.fill();
     }
+    // 幾顆特別亮、有十字星芒的星星
+    for (let i = 0; i < 9; i++) {
+      const x = rand() * view.w;
+      const y = rand() * view.h;
+      const r = 4 + rand() * 5;
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.shadowColor = "#B3E5FC";
+      ctx.shadowBlur = 8;
+      sparkle(ctx, x, y, r);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
 
     // 以下用檯面座標
     ctx.setTransform(
@@ -236,13 +294,31 @@ export default function PinballGame() {
       view.dpr * view.oy
     );
 
+    // 金屬外框：先畫一圈粗框，再把檯面蓋上去，只露出外側一半
+    tableOutline(ctx);
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 18;
+    const rim = ctx.createLinearGradient(0, 0, 400, TABLE_H);
+    rim.addColorStop(0, "#9FA8DA");
+    rim.addColorStop(0.3, "#3949AB");
+    rim.addColorStop(0.55, "#C5CAE9");
+    rim.addColorStop(0.8, "#283593");
+    rim.addColorStop(1, "#7986CB");
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 22;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.save();
+    ctx.translate(0, -1);
+    tableOutline(ctx);
+    ctx.restore();
+    ctx.stroke();
+
     // 檯面底色
-    ctx.beginPath();
-    ctx.moveTo(10, TABLE_H);
-    ctx.lineTo(10, 200);
-    ctx.arc(200, 200, 190, Math.PI, Math.PI * 2);
-    ctx.lineTo(390, TABLE_H);
-    ctx.closePath();
+    tableOutline(ctx);
     const field = ctx.createLinearGradient(0, 0, 0, TABLE_H);
     field.addColorStop(0, "#1B1F5E");
     field.addColorStop(0.6, "#120E3F");
@@ -263,6 +339,103 @@ export default function PinballGame() {
     nebula(90, 170, 170, "rgba(213,0,249,0.28)");
     nebula(290, 330, 190, "rgba(0,229,255,0.2)");
     nebula(150, 540, 170, "rgba(255,64,129,0.18)");
+    // 檯面上的細碎星點
+    for (let i = 0; i < 90; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.15 + rand() * 0.45})`;
+      ctx.beginPath();
+      ctx.arc(10 + rand() * 350, 20 + rand() * 640, rand() * 1.1 + 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 下方的霓虹地平線格線
+    {
+      const horizon = 560;
+      const vp = 185;
+      const grid = ctx.createLinearGradient(0, horizon, 0, TABLE_H);
+      grid.addColorStop(0, "rgba(255,64,129,0)");
+      grid.addColorStop(1, "rgba(255,64,129,0.32)");
+      ctx.strokeStyle = grid;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let k = -8; k <= 8; k++) {
+        ctx.moveTo(vp + k * 6, horizon);
+        ctx.lineTo(vp + k * 70, TABLE_H);
+      }
+      for (let t = 0.08; t < 1; t *= 1.55) {
+        const y = horizon + (TABLE_H - horizon) * t;
+        ctx.moveTo(0, y);
+        ctx.lineTo(400, y);
+      }
+      ctx.stroke();
+    }
+    // 遠方的大環狀星球（淡淡的插畫）
+    {
+      const cx = 250;
+      const cy = 520;
+      const r = 58;
+      ctx.globalAlpha = 0.2;
+      const body = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.1, cx, cy, r);
+      body.addColorStop(0, "#FFE0B2");
+      body.addColorStop(0.5, "#FF8A65");
+      body.addColorStop(1, "#4A148C");
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#FFCCBC";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r * 1.7, r * 0.42, -0.3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // 右上方的月亮
+    {
+      const cx = 326;
+      const cy = 150;
+      const r = 20;
+      ctx.globalAlpha = 0.45;
+      const moon = ctx.createRadialGradient(cx - 7, cy - 7, 2, cx, cy, r);
+      moon.addColorStop(0, "#FFFFFF");
+      moon.addColorStop(1, "#9FA8DA");
+      ctx.fillStyle = moon;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(63,81,181,0.45)";
+      for (const [dx, dy, cr] of [
+        [-6, -4, 5],
+        [7, 5, 4],
+        [-2, 10, 3],
+        [9, -8, 2.5],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(cx + dx, cy + dy, cr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // 星座連線
+    {
+      const pts: [number, number][] = [
+        [228, 410],
+        [258, 392],
+        [290, 404],
+        [306, 436],
+        [276, 452],
+      ];
+      ctx.strokeStyle = "rgba(179,229,252,0.25)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      for (const [x, y] of pts) {
+        sparkle(ctx, x, y, 3.5);
+        ctx.fill();
+      }
+    }
     // 軌道環裝飾
     ctx.strokeStyle = "rgba(255,255,255,0.08)";
     ctx.lineWidth = 2;
@@ -285,10 +458,14 @@ export default function PinballGame() {
     }
     ctx.restore();
 
-    // 霓虹牆
+    // 霓虹牆：上面青色、往下漸漸變成粉紫
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    const strokeWalls = (width: number, color: string, blur: number) => {
+    const neon = ctx.createLinearGradient(0, 0, 0, TABLE_H);
+    neon.addColorStop(0, "rgba(0,229,255,0.6)");
+    neon.addColorStop(0.6, "rgba(124,77,255,0.6)");
+    neon.addColorStop(1, "rgba(255,64,129,0.6)");
+    const strokeWalls = (width: number, color: string | CanvasGradient, blur: number) => {
       ctx.shadowColor = "#00E5FF";
       ctx.shadowBlur = blur;
       ctx.strokeStyle = color;
@@ -300,8 +477,8 @@ export default function PinballGame() {
       }
       ctx.stroke();
     };
-    strokeWalls(6, "rgba(0,229,255,0.55)", 14);
-    strokeWalls(2.5, "#E0FFFF", 0);
+    strokeWalls(7, neon, 16);
+    strokeWalls(2.5, "#F3F8FF", 0);
     ctx.shadowBlur = 0;
 
     return off;
@@ -464,25 +641,58 @@ export default function PinballGame() {
 
     const drawFlipper = (ctx: CanvasRenderingContext2D, f: Flipper) => {
       const tip = flipperTip(f);
-      ctx.lineCap = "round";
+      const a = Math.atan2(tip.y - f.py, tip.x - f.px);
+      const r1 = f.radius * 1.15;
+      const r2 = f.radius * 0.7;
+      const shape = () => {
+        ctx.beginPath();
+        ctx.arc(f.px, f.py, r1, a + Math.PI / 2, a - Math.PI / 2);
+        ctx.arc(tip.x, tip.y, r2, a - Math.PI / 2, a + Math.PI / 2);
+        ctx.closePath();
+      };
+      // 影子
+      ctx.save();
+      ctx.translate(2, 4);
+      shape();
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fill();
+      ctx.restore();
+      // 本體
+      shape();
+      const body = ctx.createLinearGradient(
+        f.px - Math.sin(a) * r1,
+        f.py + Math.cos(a) * r1,
+        f.px + Math.sin(a) * r1,
+        f.py - Math.cos(a) * r1
+      );
+      body.addColorStop(0, "#AD1457");
+      body.addColorStop(0.55, "#FF4081");
+      body.addColorStop(1, "#FF80AB");
       ctx.shadowColor = "#FF4081";
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = "#FF4081";
-      ctx.lineWidth = f.radius * 2;
-      ctx.beginPath();
-      ctx.moveTo(f.px, f.py);
-      ctx.lineTo(tip.x, tip.y);
-      ctx.stroke();
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = body;
+      ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#FFD1E0";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(f.px, f.py);
-      ctx.lineTo(tip.x, tip.y);
+      // 白色橡膠邊
+      ctx.strokeStyle = "#FFE4EE";
+      ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.fillStyle = "#FFFFFF";
+      // 中間一道亮光
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.arc(f.px, f.py, 4, 0, Math.PI * 2);
+      ctx.moveTo(f.px + Math.cos(a) * 6 + Math.sin(a) * 3, f.py + Math.sin(a) * 6 - Math.cos(a) * 3);
+      ctx.lineTo(tip.x - Math.cos(a) * 3 + Math.sin(a) * 2, tip.y - Math.sin(a) * 3 - Math.cos(a) * 2);
+      ctx.stroke();
+      // 金屬轉軸
+      const cap = ctx.createRadialGradient(f.px - 1.5, f.py - 1.5, 0.5, f.px, f.py, 5.5);
+      cap.addColorStop(0, "#FFFFFF");
+      cap.addColorStop(0.6, "#B0BEC5");
+      cap.addColorStop(1, "#455A64");
+      ctx.fillStyle = cap;
+      ctx.beginPath();
+      ctx.arc(f.px, f.py, 5.5, 0, Math.PI * 2);
       ctx.fill();
     };
 
@@ -512,13 +722,41 @@ export default function PinballGame() {
         ctx.stroke();
       }
 
-      // 星星通道燈
+      // 一閃一閃的小星星
+      for (const tw of TWINKLES) {
+        const a = (Math.sin(time * 2.2 + tw.phase) + 1) / 2;
+        if (a < 0.15) continue;
+        ctx.fillStyle = `rgba(255,255,255,${a * 0.75})`;
+        sparkle(ctx, tw.x, tw.y, tw.size * (0.6 + a * 0.6));
+        ctx.fill();
+      }
+
+      // 星星通道燈（下面墊一個圓形燈座）
       for (const r of table.rollovers) {
+        ctx.fillStyle = "rgba(5,7,26,0.55)";
+        ctx.strokeStyle = r.lit ? "rgba(255,234,0,0.8)" : "rgba(255,234,0,0.25)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.r + 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        if (r.lit) {
+          const halo = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, r.r + 16);
+          halo.addColorStop(0, "rgba(255,234,0,0.55)");
+          halo.addColorStop(1, "rgba(255,234,0,0)");
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.arc(r.x, r.y, r.r + 16, 0, Math.PI * 2);
+          ctx.fill();
+        }
         starPath(ctx, r.x, r.y, r.r + 2);
         if (r.lit) {
           ctx.shadowColor = "#FFEA00";
           ctx.shadowBlur = 16;
-          ctx.fillStyle = "#FFEA00";
+          const sg = ctx.createRadialGradient(r.x, r.y - 2, 1, r.x, r.y, r.r + 2);
+          sg.addColorStop(0, "#FFFDE7");
+          sg.addColorStop(1, "#FFC400");
+          ctx.fillStyle = sg;
           ctx.fill();
           ctx.shadowBlur = 0;
         } else {
@@ -534,6 +772,20 @@ export default function PinballGame() {
       {
         const wh = table.wormhole;
         const target = table.mission.stage === 1;
+        // 旋轉的吸積盤
+        ctx.save();
+        ctx.translate(wh.x, wh.y);
+        ctx.rotate(time * 0.8);
+        const disk = ctx.createRadialGradient(0, 0, wh.r * 0.6, 0, 0, wh.r + 16);
+        disk.addColorStop(0, "rgba(255,171,64,0)");
+        disk.addColorStop(0.45, "rgba(255,171,64,0.5)");
+        disk.addColorStop(0.75, "rgba(213,0,249,0.35)");
+        disk.addColorStop(1, "rgba(213,0,249,0)");
+        ctx.fillStyle = disk;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, wh.r + 16, (wh.r + 16) * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
         const hole = ctx.createRadialGradient(wh.x, wh.y, 2, wh.x, wh.y, wh.r + 6);
         hole.addColorStop(0, "#000000");
         hole.addColorStop(0.65, "#1A0033");
@@ -606,7 +858,11 @@ export default function PinballGame() {
         } else {
           ctx.shadowColor = "#FFAB40";
           ctx.shadowBlur = table.mission.stage === 0 ? 10 + Math.sin(time * 8) * 5 : 8;
-          ctx.fillStyle = "#FFAB40";
+          const tg = ctx.createLinearGradient(t.ax - 4, 0, t.ax + 4, 0);
+          tg.addColorStop(0, "#E65100");
+          tg.addColorStop(0.5, "#FFD180");
+          tg.addColorStop(1, "#FF9100");
+          ctx.fillStyle = tg;
           ctx.fill();
           ctx.shadowBlur = 0;
         }
@@ -621,8 +877,20 @@ export default function PinballGame() {
         ctx.lineTo(sl.bx, sl.by);
         ctx.lineTo(sl.cx, sl.cy);
         ctx.closePath();
-        ctx.fillStyle = `rgba(213,0,249,${0.22 + flash * 0.5})`;
+        const sg = ctx.createLinearGradient(sl.ax, sl.ay, sl.cx, sl.cy);
+        sg.addColorStop(0, `rgba(234,128,252,${0.45 + flash * 0.5})`);
+        sg.addColorStop(1, `rgba(74,20,140,${0.35 + flash * 0.4})`);
+        ctx.fillStyle = sg;
         ctx.fill();
+        // 三角形裡兩顆小燈
+        ctx.fillStyle = flash > 0 ? "#FFFFFF" : "rgba(255,255,255,0.55)";
+        for (const k of [0.35, 0.6]) {
+          const lx = sl.cx + ((sl.ax + sl.bx) / 2 - sl.cx) * k;
+          const ly = sl.cy + ((sl.ay + sl.by) / 2 - sl.cy) * k;
+          ctx.beginPath();
+          ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.strokeStyle = flash > 0 ? "#FFFFFF" : "#EA80FC";
         ctx.shadowColor = "#D500F9";
         ctx.shadowBlur = 10 + flash * 16;
@@ -641,31 +909,88 @@ export default function PinballGame() {
         const hitAt = flashRef.current.get(bump.id);
         const flash = hitAt !== undefined ? Math.max(0, 1 - (time - hitAt) / 0.25) : 0;
         const r = bump.r * (1 + flash * 0.18);
-        // 光環
-        ctx.strokeStyle = c1;
-        ctx.globalAlpha = 0.35 + flash * 0.65;
-        ctx.lineWidth = 3;
+        // 金屬底座（彈射器的裙邊）與發光外圈
+        const skirt = ctx.createRadialGradient(bump.x, bump.y, r * 0.8, bump.x, bump.y, r + 8);
+        skirt.addColorStop(0, "#0B0F2E");
+        skirt.addColorStop(0.75, "#3A3F7A");
+        skirt.addColorStop(1, "#141842");
+        ctx.fillStyle = skirt;
         ctx.beginPath();
-        ctx.arc(bump.x, bump.y, r + 5 + flash * 6, 0, Math.PI * 2);
+        ctx.arc(bump.x, bump.y, bump.r + 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = c1;
+        ctx.shadowColor = c1;
+        ctx.shadowBlur = 8 + flash * 18;
+        ctx.globalAlpha = 0.55 + flash * 0.45;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(bump.x, bump.y, bump.r + 8 + flash * 8, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
         // 本體
-        const g = ctx.createRadialGradient(bump.x - r * 0.35, bump.y - r * 0.35, r * 0.1, bump.x, bump.y, r);
-        g.addColorStop(0, flash > 0 ? "#FFFFFF" : c1);
+        const g = ctx.createRadialGradient(bump.x - r * 0.35, bump.y - r * 0.4, r * 0.1, bump.x, bump.y, r);
+        g.addColorStop(0, flash > 0 ? "#FFFFFF" : "#FFF8FB");
+        g.addColorStop(0.3, c1);
         g.addColorStop(1, c2);
         ctx.shadowColor = c1;
-        ctx.shadowBlur = 10 + flash * 20;
+        ctx.shadowBlur = 12 + flash * 20;
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(bump.x, bump.y, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        // 星球條紋
-        if (bump.r > 20) {
-          ctx.strokeStyle = "rgba(255,255,255,0.3)";
-          ctx.lineWidth = 2;
+        // 星球表面：各自不同的花紋
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bump.x, bump.y, r, 0, Math.PI * 2);
+        ctx.clip();
+        if (bump.id === "planet-a") {
+          // 隕石坑
+          ctx.fillStyle = "rgba(136,14,79,0.35)";
+          for (const [dx, dy, cr] of [
+            [-0.35, 0.2, 0.22],
+            [0.3, -0.15, 0.16],
+            [0.15, 0.45, 0.12],
+            [-0.05, -0.5, 0.1],
+          ]) {
+            ctx.beginPath();
+            ctx.arc(bump.x + dx * r, bump.y + dy * r, cr * r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          // 一條條的雲帶
+          ctx.strokeStyle = bump.id === "planet-b" ? "rgba(1,87,155,0.35)" : "rgba(191,54,12,0.35)";
+          ctx.lineWidth = r * 0.16;
+          for (const k of [-0.45, -0.05, 0.35]) {
+            ctx.beginPath();
+            ctx.ellipse(bump.x, bump.y + k * r, r * 1.1, r * 0.12, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          if (bump.id === "planet-c") {
+            ctx.fillStyle = "rgba(183,28,28,0.45)";
+            ctx.beginPath();
+            ctx.ellipse(bump.x + r * 0.3, bump.y + r * 0.18, r * 0.22, r * 0.13, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        // 背光面的陰影
+        const shade = ctx.createRadialGradient(bump.x - r * 0.5, bump.y - r * 0.5, r * 0.4, bump.x, bump.y, r * 1.2);
+        shade.addColorStop(0, "rgba(0,0,0,0)");
+        shade.addColorStop(1, "rgba(0,0,0,0.45)");
+        ctx.fillStyle = shade;
+        ctx.fillRect(bump.x - r, bump.y - r, r * 2, r * 2);
+        ctx.restore();
+        // 亮點
+        ctx.fillStyle = "rgba(255,255,255,0.6)";
+        ctx.beginPath();
+        ctx.ellipse(bump.x - r * 0.38, bump.y - r * 0.42, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2);
+        ctx.fill();
+        // 藍色星球有一圈環
+        if (bump.id === "planet-b") {
+          ctx.strokeStyle = "rgba(225,245,254,0.75)";
+          ctx.lineWidth = 2.5;
           ctx.beginPath();
-          ctx.ellipse(bump.x, bump.y, r * 1.35, r * 0.35, -0.4, 0, Math.PI * 2);
+          ctx.ellipse(bump.x, bump.y, r * 1.45, r * 0.38, -0.35, 0.15, Math.PI - 0.15);
           ctx.stroke();
         }
       }
@@ -757,17 +1082,29 @@ export default function PinballGame() {
           ctx.ellipse(b.x + 3, b.y + 6, r, r * 0.7, 0, 0, Math.PI * 2);
           ctx.fill();
         }
-        const g =ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, r);
+        const g = ctx.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4, r * 0.1, b.x, b.y, r);
         g.addColorStop(0, "#FFFFFF");
-        g.addColorStop(0.6, "#CFD8DC");
-        g.addColorStop(1, "#78909C");
+        g.addColorStop(0.3, "#E3F2FD");
+        g.addColorStop(0.7, "#90A4AE");
+        g.addColorStop(1, "#37474F");
         ctx.shadowColor = "#80D8FF";
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 14;
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
+        // 下緣反射檯面的霓虹光
+        ctx.strokeStyle = "rgba(128,216,255,0.7)";
+        ctx.lineWidth = r * 0.22;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, r * 0.72, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+        // 小亮點
+        ctx.fillStyle = "#FFFFFF";
+        ctx.beginPath();
+        ctx.arc(b.x - r * 0.35, b.y - r * 0.38, r * 0.2, 0, Math.PI * 2);
+        ctx.fill();
       };
       if (!b?.onRamp) drawBall(BALL_R);
 
