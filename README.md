@@ -9,6 +9,7 @@
 - 全螢幕 standalone 模式
 - 大觸控區域、鮮豔色彩、無失敗懲罰、即時正面回饋
 - 家長設定（長按右上角）：預設模式（每次詢問／寶寶／幼兒／懷舊遊戲）、音量、遊玩計時提醒、釣魚的點點捲線輪
+- 一頁選遊戲：首頁上方切換 🎈 寶寶／⭐ 幼兒／🕹️ 懷舊，下面直接列出那個模式的全部遊戲，點一下就進去；從遊戲返回只要一層就回到選單，並停在剛才的模式，下次打開也記得上次看的模式
 - 返回鍵要按住約 0.8 秒才會返回（外圈進度環填滿），寶寶亂拍不會跳出遊戲
 - 可完全離線遊玩：Service Worker 安裝時就預先快取所有頁面與音效，搭飛機前打開一次 App 即可
 - 全介面中文化
@@ -94,8 +95,9 @@ src/
 │   ├── toddler/            # 畫畫板 / 記憶翻牌 / 數數 / 賽車 / 玩沙沙 / 釣魚 / 太空彈珠台 / 夜市彈珠台 / 動物樂團 / 恐龍拼圖與魚類拼圖（PuzzleGame 共用玩法、puzzleThemes 各自的圖與音效；dino/ 十二隻恐龍、fish/ 十二種海底朋友的 SVG 圖）/ 小小廚房（kitchen/ 料理與配料的 SVG 圖）
 │   ├── retro/              # 坦克大戰、小精靈、復古雷電（遊戲主體、canvas 繪圖、素材載入、紅白機手把）
 │   ├── svg/                # SVG 圖形 (shapes/animals/fruits)
-│   └── ui/                 # BigButton / BackButton / ParentSettings / TimerOverlay / RegisterSW
+│   └── ui/                 # GameMenu（首頁與各模式共用的遊戲選單）/ BackButton / ParentSettings / TimerOverlay / RegisterSW
 ├── lib/
+│   ├── menu/               # 遊戲選單的模式與遊戲清單（含測試：每個遊戲頁面都要列在選單上）
 │   ├── audio/              # AudioManager (singleton) + synth.ts (合成音效) + chiptune.ts (紅白機風格音效)
 │   ├── particles/          # Canvas 粒子引擎
 │   ├── sand/               # 格子沙物理（純函式，含 node --test 測試）
