@@ -621,3 +621,18 @@ body {
 .hatch-roll-in {
   animation: hatch-roll-in 0.6s ease-out;
 }
+
+/* 遊戲選單換模式時，遊戲列表輕輕淡入 */
+@keyframes menu-fade {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.menu-fade {
+  animation: menu-fade 0.25s ease-out;
+}
