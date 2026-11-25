@@ -56,6 +56,7 @@ export const GAMES: GameInfo[] = [
   g("retro", "tank", "坦克大戰", "🧱", "#8D6E63"),
   g("retro", "pacman", "小精靈", "🟡", "#1A237E"),
   g("retro", "raiden", "復古雷電", "✈️", "#C62828"),
+  g("retro", "city", "城市狂飆", "🚗", "#00897B"),
 ];
 
 export function gamesOf(mode: GameMode): GameInfo[] {
