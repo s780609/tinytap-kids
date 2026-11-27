@@ -12,7 +12,7 @@ import {
   laneFromPosition,
   step,
 } from "./sim.ts";
-import type { Car, GameEvent, GameState, Input } from "./sim.ts";
+import type { Car, GameEvent, GameState, Input, Ped } from "./sim.ts";
 
 const idle: Input = { dx: 0, dy: 0, action: false, horn: false, handbrake: false };
 
@@ -50,6 +50,8 @@ function car(s: GameState, x: number, y: number, angle: number, kind: Car["kind"
     backing: 0,
     braking: false,
     skidFrom: null,
+    door: 0,
+    held: false,
   };
   s.cars.push(c);
   return c;
@@ -111,13 +113,43 @@ test("走路：推搖桿會走、撞到大樓會停住", () => {
   assert.ok(!isSolid(t));
 });
 
+/** 按上車，等上車動作跑完（走到門邊、開門、坐進去） */
+function enter(s: GameState): number {
+  run(s, 1, { action: true });
+  for (let i = 0; i < 200 && s.player.car === null; i++) run(s, 1);
+  run(s, 10);
+  return s.player.car ?? -1;
+}
+
+test("上車動作：先走到駕駛座門邊、開門、坐進去，不是瞬間移動", () => {
+  const s = empty();
+  s.player.x = EAST_LANE.x + 5;
+  s.player.y = EAST_LANE.y + 30;
+  const c = car(s, EAST_LANE.x, EAST_LANE.y, 0);
+  run(s, 1, { action: true });
+  assert.equal(s.player.car, null, "按下去還沒上車");
+  assert.ok(s.player.entering);
+  let maxDoor = 0;
+  let sawIn = false;
+  for (let i = 0; i < 200 && s.player.car === null; i++) {
+    run(s, 1);
+    maxDoor = Math.max(maxDoor, c.door);
+    if (s.player.entering?.phase === "in") sawIn = true;
+  }
+  assert.equal(s.player.car, c.id);
+  assert.equal(maxDoor, 1, "車門有打開");
+  assert.ok(sawIn);
+  run(s, 12);
+  assert.equal(c.door, 0, "坐進去之後關門");
+  assert.equal(s.player.entering, null);
+});
+
 test("上車、開車往搖桿方向跑、往後推會煞車再倒車、下車", () => {
   const s = empty();
   s.player.x = EAST_LANE.x;
   s.player.y = EAST_LANE.y + 14;
   const c = car(s, EAST_LANE.x, EAST_LANE.y, 0);
-  run(s, 1, { action: true });
-  assert.equal(s.player.car, c.id);
+  assert.equal(enter(s), c.id);
   run(s, 60, { dx: 1 });
   assert.ok(forwardSpeed(c) > 150, `速度 ${forwardSpeed(c)}`);
   assert.ok(c.x > EAST_LANE.x + 100);
@@ -125,8 +157,11 @@ test("上車、開車往搖桿方向跑、往後推會煞車再倒車、下車",
   assert.ok(forwardSpeed(c) < 0, "往後推到最後會倒車");
   run(s, 30);
   run(s, 1, { action: true });
+  run(s, 20);
   assert.equal(s.player.car, null);
   assert.equal(c.driver, "none");
+  assert.equal(c.door, 0);
+  assert.ok(Math.hypot(s.player.x - c.x, s.player.y - c.y) > 10, "從車門走出來");
 });
 
 test("開車轉彎：往下推，車頭會轉向南邊", () => {
@@ -176,7 +211,7 @@ test("撞到行人：跌倒（會再爬起來），通緝一顆星", () => {
   s.player.car = c.id;
   c.vx = 200;
   s.peds = [
-    { id: 500, x: EAST_LANE.x + 30, y: EAST_LANE.y, angle: 0, state: "down", timer: 0, tx: 0, ty: 0, dir: 0, shirt: "#f00", hair: "#000", speed: 30, phase: 0 },
+    { id: 500, x: EAST_LANE.x + 30, y: EAST_LANE.y, angle: 0, state: "down", timer: 0, tx: 0, ty: 0, dir: 0, shirt: "#f00", hair: "#000", speed: 30, phase: 0, wet: 0, robbed: false },
   ];
   // 讓他站著（down 計時 0 → 下一步起身成 walk），不會先閃開
   s.peds[0].state = "walk";
@@ -233,8 +268,7 @@ test("偷有司機的車：司機跑掉；偷警車通緝", () => {
   s.player.x = EAST_LANE.x;
   s.player.y = EAST_LANE.y + 16;
   const cop = car(s, EAST_LANE.x, EAST_LANE.y, 0, "police", "police");
-  run(s, 1, { action: true });
-  assert.equal(s.player.car, cop.id);
+  assert.equal(enter(s), cop.id);
   assert.ok(s.wanted >= 1);
   assert.ok(s.peds.some((p) => p.state === "flee"));
   assert.equal(findCar(s, s.player.car)?.driver, "player");
@@ -247,4 +281,105 @@ test("同樣的種子與輸入，結果完全相同", () => {
     return JSON.stringify({ p: s.player, c: s.cars.map((c) => [c.x.toFixed(3), c.y.toFixed(3)]), cash: s.cash });
   };
   assert.equal(play(), play());
+});
+
+/** 某個人身邊的錢（城市自己也會在遠處生錢，只算附近的） */
+function coinsNear(s: GameState, p: { x: number; y: number }) {
+  return s.coins.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < 40).length;
+}
+
+function ped(s: GameState, x: number, y: number) {
+  const p = {
+    id: s.nextId++,
+    x,
+    y,
+    angle: 0,
+    state: "walk" as Ped["state"],
+    timer: 0,
+    tx: x,
+    ty: y,
+    dir: 0 as const,
+    shirt: "#f00",
+    hair: "#000",
+    speed: 0,
+    phase: 0,
+    wet: 0,
+    robbed: false,
+  };
+  s.peds.push(p);
+  return p;
+}
+
+test("出拳：打到前面的路人會跌倒、掉錢、通緝；過一下會爬起來", () => {
+  const s = empty();
+  s.player.x = EAST_LANE.x;
+  s.player.y = EAST_LANE.y;
+  s.player.angle = 0;
+  const p = ped(s, EAST_LANE.x + 15, EAST_LANE.y);
+  const events = run(s, 1, { punch: true });
+  assert.ok(events.some((e) => e.type === "punch"));
+  run(s, 12);
+  assert.equal(p.state, "down");
+  assert.equal(coinsNear(s, p), 1, "掉了錢");
+  assert.equal(s.wanted, 1);
+  // 同一個人再打不會再掉錢
+  run(s, 160);
+  assert.notEqual(p.state, "down");
+  p.x = s.player.x + 15;
+  p.y = s.player.y;
+  p.state = "walk";
+  s.player.angle = 0;
+  s.coins = [];
+  run(s, 1, { punch: true });
+  run(s, 12);
+  assert.equal(coinsNear(s, p), 0, "錢已經被搶過了");
+});
+
+test("出拳：沒打到人就只是揮空", () => {
+  const s = empty();
+  s.player.x = EAST_LANE.x;
+  s.player.y = EAST_LANE.y;
+  const p = ped(s, EAST_LANE.x - 15, EAST_LANE.y);
+  s.player.angle = 0;
+  run(s, 1, { punch: true });
+  run(s, 20);
+  assert.equal(coinsNear(s, p), 0);
+  assert.equal(s.wanted, 0);
+});
+
+test("水槍：自動瞄準路人，噴到會丟錢跑走", () => {
+  const s = empty();
+  s.player.x = EAST_LANE.x;
+  s.player.y = EAST_LANE.y;
+  s.player.angle = 0;
+  // 稍微偏一點也會自動瞄準
+  const p = ped(s, EAST_LANE.x + 120, EAST_LANE.y + 20);
+  const events = run(s, 30, { shoot: true });
+  assert.ok(events.some((e) => e.type === "shoot"));
+  assert.ok(events.some((e) => e.type === "scare"));
+  assert.ok(p.wet > 0);
+  assert.equal(p.robbed, true, "丟下錢了");
+});
+
+test("水槍：噴有司機的車，司機嚇得下車，車子可以直接開走", () => {
+  const s = empty();
+  s.player.x = EAST_LANE.x;
+  s.player.y = EAST_LANE.y - 60;
+  s.player.angle = Math.PI / 2;
+  const c = car(s, EAST_LANE.x, EAST_LANE.y, 0, "taxi", "ai");
+  const events = run(s, 20, { shoot: true });
+  assert.ok(events.some((e) => e.type === "carjack"));
+  assert.equal(c.driver, "none");
+  assert.ok(s.peds.some((p) => p.state === "flee"));
+  s.player.x = EAST_LANE.x;
+  s.player.y = EAST_LANE.y - 24;
+  assert.equal(enter(s), c.id);
+});
+
+test("坐在車上不能出拳、開水槍", () => {
+  const s = empty();
+  const c = car(s, EAST_LANE.x, EAST_LANE.y, 0, "sedan", "player");
+  s.player.car = c.id;
+  const events = run(s, 20, { punch: true, shoot: true });
+  assert.ok(!events.some((e) => e.type === "punch" || e.type === "shoot"));
 });

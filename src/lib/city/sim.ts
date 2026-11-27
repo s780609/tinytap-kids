@@ -93,6 +93,10 @@ export interface Car {
   braking: boolean;
   /** 上次留下胎痕的後輪位置 */
   skidFrom: [number, number, number, number] | null;
+  /** 駕駛座車門打開的程度 0～1 */
+  door: number;
+  /** 有人要上這台車：AI 先停下來等 */
+  held: boolean;
 }
 
 export type PedState = "walk" | "flee" | "down";
@@ -111,6 +115,10 @@ export interface Ped {
   hair: string;
   speed: number;
   phase: number;
+  /** 被水槍噴到，身上還濕多久（tick） */
+  wet: number;
+  /** 錢已經被搶走了，不會再掉 */
+  robbed: boolean;
 }
 
 export interface Coin {
@@ -138,6 +146,25 @@ export interface Player {
   down: number;
   phase: number;
   moving: boolean;
+  /** 上車動作：走到車門 → 開門 → 坐進去 → 關門 */
+  entering: { car: number; phase: "walk" | "open" | "in" | "close"; t: number; fromX: number; fromY: number } | null;
+  /** 下車動作：開門 → 走出來 → 關門 */
+  exiting: { car: number; phase: "open" | "close"; t: number } | null;
+  /** 出拳動畫還剩幾 tick */
+  punch: number;
+  /** 水槍冷卻 */
+  shootCd: number;
+  /** 最近開過水槍（畫手上的水槍） */
+  gun: number;
+}
+
+export interface Shot {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
 }
 
 export interface Input {
@@ -149,6 +176,10 @@ export interface Input {
   horn: boolean;
   /** 手煞車（按住甩尾） */
   handbrake: boolean;
+  /** 出拳（按一下） */
+  punch?: boolean;
+  /** 水槍（按住連發） */
+  shoot?: boolean;
 }
 
 export type GameEvent =
@@ -163,7 +194,13 @@ export type GameEvent =
   | { type: "calm"; level: number }
   | { type: "busted"; fine: number }
   | { type: "free" }
-  | { type: "wreck"; withPlayer: boolean };
+  | { type: "wreck"; withPlayer: boolean }
+  | { type: "punch" }
+  | { type: "punchHit"; x: number; y: number }
+  | { type: "shoot" }
+  | { type: "splash"; x: number; y: number }
+  | { type: "scare"; x: number; y: number }
+  | { type: "carjack" };
 
 export interface GameState {
   map: CityMap;
@@ -175,6 +212,7 @@ export interface GameState {
   peds: Ped[];
   coins: Coin[];
   skids: Skid[];
+  shots: Shot[];
   cash: number;
   wanted: number;
   /** 附近沒警察多久了（tick） */
@@ -328,6 +366,8 @@ function newCar(s: GameState, kind: CarKind, x: number, y: number, angle: number
     backing: 0,
     braking: false,
     skidFrom: null,
+    door: 0,
+    held: false,
   };
 }
 
@@ -346,6 +386,8 @@ function newPed(s: GameState, x: number, y: number): Ped {
     hair: HAIRS[randInt(s, 0, HAIRS.length - 1)],
     speed: 28 + rand(s) * 14,
     phase: rand(s) * 10,
+    wet: 0,
+    robbed: false,
   };
 }
 
@@ -382,11 +424,25 @@ export function createGame(seed = 1): GameState {
     seed: seed >>> 0 || 1,
     tick: 0,
     nextId: 1,
-    player: { x: map.station.x, y: map.station.y, angle: Math.PI / 2, car: null, down: 0, phase: 0, moving: false },
+    player: {
+      x: map.station.x,
+      y: map.station.y,
+      angle: Math.PI / 2,
+      car: null,
+      down: 0,
+      phase: 0,
+      moving: false,
+      entering: null,
+      exiting: null,
+      punch: 0,
+      shootCd: 0,
+      gun: 0,
+    },
     cars: [],
     peds: [],
     coins: [],
     skids: [],
+    shots: [],
     cash: 0,
     wanted: 0,
     calm: 0,
@@ -508,6 +564,7 @@ export function playerControls(c: Car, input: Input): Controls {
 function aiControls(s: GameState, c: Car): Controls {
   const spec = CAR_SPECS[c.kind];
   const vf = forwardSpeed(c);
+  if (c.held) return { throttle: vf > 4 ? -1 : 0, steer: 0, handbrake: false };
   if (c.backing > 0) {
     c.backing--;
     return { throttle: -0.7, steer: c.id % 2 ? 1 : -1, handbrake: false };
@@ -757,45 +814,295 @@ function exitCar(s: GameState, c: Car, events: GameEvent[]) {
   events.push({ type: "exit" });
 }
 
-function toggleCar(s: GameState, events: GameEvent[]) {
-  const car = findCar(s, s.player.car);
+/** 駕駛座車門外面那一點（車子左側） */
+export function doorPoint(c: Car): { x: number; y: number } {
+  const spec = CAR_SPECS[c.kind];
+  const fx = Math.cos(c.angle);
+  const fy = Math.sin(c.angle);
+  return {
+    x: c.x + fx * spec.length * 0.08 + fy * (spec.width / 2 + 9),
+    y: c.y + fy * spec.length * 0.08 - fx * (spec.width / 2 + 9),
+  };
+}
+
+/** 把車上的司機拉下來，讓他跑走 */
+function ejectDriver(s: GameState, c: Car, events: GameEvent[], awayFrom: { x: number; y: number }) {
+  if (c.driver !== "ai" && c.driver !== "police") return;
+  const d = doorPoint(c);
+  const p = newPed(s, d.x, d.y);
+  p.state = "flee";
+  p.timer = 100;
+  p.angle = Math.atan2(p.y - awayFrom.y, p.x - awayFrom.x);
+  s.peds.push(p);
+  if (c.driver === "police" || policeNear(s, c.x, c.y, 350)) raiseWanted(s, events, true);
+  c.driver = "none";
+  c.ai = null;
+  c.chase = false;
+}
+
+const OPEN_TICKS = 8;
+const IN_TICKS = 12;
+const ENTER_TIMEOUT = 150;
+
+function toggleCar(s: GameState) {
+  const pl = s.player;
+  if (pl.entering || pl.exiting) return;
+  const car = findCar(s, pl.car);
   if (car) {
-    exitCar(s, car, events);
+    pl.exiting = { car: car.id, phase: "open", t: 0 };
     return;
   }
-  if (s.player.down > 0) return;
+  if (pl.down > 0) return;
   let best: Car | null = null;
   let bestD = ENTER_RANGE;
   for (const c of s.cars) {
     if (c.wrecked) continue;
-    const d = Math.hypot(c.x - s.player.x, c.y - s.player.y) - CAR_SPECS[c.kind].width / 2;
+    const d = Math.hypot(c.x - pl.x, c.y - pl.y) - CAR_SPECS[c.kind].width / 2;
     if (d < bestD) {
       bestD = d;
       best = c;
     }
   }
   if (!best) return;
-  if (best.driver === "ai" || best.driver === "police") {
-    // 原本的司機下車跑開
-    const p = newPed(s, best.x - Math.sin(best.angle) * 20, best.y + Math.cos(best.angle) * 20);
-    p.state = "flee";
-    p.timer = 90;
-    p.angle = Math.atan2(p.y - best.y, p.x - best.x);
-    s.peds.push(p);
-    if (best.driver === "police" || policeNear(s, best.x, best.y, 350)) raiseWanted(s, events, true);
-  } else if (best.kind === "police") {
-    raiseWanted(s, events, true);
+  best.held = true;
+  pl.entering = { car: best.id, phase: "walk", t: 0, fromX: pl.x, fromY: pl.y };
+}
+
+function cancelEnter(s: GameState) {
+  const e = s.player.entering;
+  if (!e) return;
+  const c = findCar(s, e.car);
+  if (c) {
+    c.held = false;
+    c.door = 0;
   }
-  best.driver = "player";
-  best.ai = null;
-  best.chase = false;
-  s.player.car = best.id;
-  events.push({ type: "enter", kind: best.kind });
+  s.player.entering = null;
+}
+
+/** 上車動作一格 */
+function updateEntering(s: GameState, input: Input, events: GameEvent[]) {
+  const pl = s.player;
+  const e = pl.entering!;
+  const c = findCar(s, e.car);
+  if (!c || c.wrecked) {
+    cancelEnter(s);
+    return;
+  }
+  e.t++;
+  if (e.phase === "walk") {
+    // 推搖桿就取消；走太久（車子跑掉了）也取消
+    if (Math.hypot(input.dx, input.dy) > 0.6 && e.t > 6) {
+      cancelEnter(s);
+      return;
+    }
+    const d = doorPoint(c);
+    const dx = d.x - pl.x;
+    const dy = d.y - pl.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 5 || e.t > ENTER_TIMEOUT) {
+      if (dist > 40) {
+        cancelEnter(s);
+        return;
+      }
+      pl.x = d.x;
+      pl.y = d.y;
+      pl.angle = Math.atan2(c.y - pl.y, c.x - pl.x);
+      e.phase = "open";
+      e.t = 0;
+      return;
+    }
+    const sp = Math.min(150, dist / DT);
+    pl.angle = Math.atan2(dy, dx);
+    pl.moving = true;
+    pl.phase += sp * DT * 0.18;
+    moveWalker(s, pl, (dx / dist) * sp, (dy / dist) * sp, PLAYER_R, c);
+  } else if (e.phase === "open") {
+    c.door = Math.min(1, e.t / OPEN_TICKS);
+    if (e.t >= OPEN_TICKS) {
+      if (c.driver === "ai" || c.driver === "police") {
+        ejectDriver(s, c, events, c);
+        events.push({ type: "carjack" });
+      } else if (c.kind === "police") {
+        raiseWanted(s, events, true);
+      }
+      e.phase = "in";
+      e.t = 0;
+      e.fromX = pl.x;
+      e.fromY = pl.y;
+    }
+  } else if (e.phase === "in") {
+    const k = Math.min(1, e.t / IN_TICKS);
+    pl.x = e.fromX + (c.x - e.fromX) * k;
+    pl.y = e.fromY + (c.y - e.fromY) * k;
+    if (e.t >= IN_TICKS) {
+      c.driver = "player";
+      c.ai = null;
+      c.chase = false;
+      c.held = false;
+      pl.car = c.id;
+      pl.moving = false;
+      events.push({ type: "enter", kind: c.kind });
+      e.phase = "close";
+      e.t = 0;
+    }
+  } else {
+    c.door = Math.max(0, 1 - e.t / OPEN_TICKS);
+    if (e.t >= OPEN_TICKS) {
+      c.door = 0;
+      pl.entering = null;
+    }
+  }
+}
+
+/** 下車動作一格 */
+function updateExiting(s: GameState, events: GameEvent[]) {
+  const pl = s.player;
+  const e = pl.exiting!;
+  const c = findCar(s, e.car);
+  if (!c) {
+    pl.exiting = null;
+    return;
+  }
+  e.t++;
+  if (e.phase === "open") {
+    c.door = Math.min(1, e.t / OPEN_TICKS);
+    if (e.t >= OPEN_TICKS) {
+      if (pl.car === c.id) exitCar(s, c, events);
+      e.phase = "close";
+      e.t = 0;
+    }
+  } else {
+    c.door = Math.max(0, 1 - e.t / OPEN_TICKS);
+    if (e.t >= OPEN_TICKS) {
+      c.door = 0;
+      pl.exiting = null;
+    }
+  }
+}
+
+// ---------- 出拳、水槍 ----------
+
+const PUNCH_TICKS = 16;
+/** 出拳打中的那一格（手伸到最長） */
+const PUNCH_HIT = 10;
+const SHOT_SPEED = 380;
+const SHOT_LIFE = 42;
+const SHOOT_CD = 7;
+
+/** 路人掉錢（每個人只掉一次） */
+function dropMoney(s: GameState, pd: Ped) {
+  if (pd.robbed) return;
+  pd.robbed = true;
+  const a = rand(s) * Math.PI * 2;
+  s.coins.push({ id: s.nextId++, x: pd.x + Math.cos(a) * 12, y: pd.y + Math.sin(a) * 12, value: 5 * randInt(s, 2, 6) });
+}
+
+function updatePunch(s: GameState, events: GameEvent[]) {
+  const pl = s.player;
+  pl.punch--;
+  if (pl.punch !== PUNCH_TICKS - PUNCH_HIT) return;
+  const fx = Math.cos(pl.angle);
+  const fy = Math.sin(pl.angle);
+  for (const pd of s.peds) {
+    if (pd.state === "down") continue;
+    const dx = pd.x - pl.x;
+    const dy = pd.y - pl.y;
+    const ahead = dx * fx + dy * fy;
+    const side = Math.abs(-dx * fy + dy * fx);
+    if (ahead > 0 && ahead < 22 && side < 13) {
+      pd.state = "down";
+      pd.timer = 150;
+      pd.angle = pl.angle;
+      pd.x += fx * 8;
+      pd.y += fy * 8;
+      dropMoney(s, pd);
+      events.push({ type: "punchHit", x: pd.x, y: pd.y });
+      raiseWanted(s, events);
+      return;
+    }
+  }
+}
+
+/** 自動瞄準：前方一個扇形內最近的路人或有司機的車 */
+function aimAngle(s: GameState): number {
+  const pl = s.player;
+  let best = pl.angle;
+  let bestD = 240;
+  const consider = (x: number, y: number) => {
+    const d = Math.hypot(x - pl.x, y - pl.y);
+    const a = Math.atan2(y - pl.y, x - pl.x);
+    if (d < bestD && Math.abs(wrapAngle(a - pl.angle)) < 0.6) {
+      bestD = d;
+      best = a;
+    }
+  };
+  for (const pd of s.peds) if (pd.state !== "down") consider(pd.x, pd.y);
+  for (const c of s.cars) if (c.driver === "ai" || c.driver === "police") consider(c.x, c.y);
+  return best;
+}
+
+function shoot(s: GameState, events: GameEvent[]) {
+  const pl = s.player;
+  const a = aimAngle(s);
+  pl.angle = a;
+  pl.shootCd = SHOOT_CD;
+  pl.gun = 40;
+  s.shots.push({
+    id: s.nextId++,
+    x: pl.x + Math.cos(a) * 12,
+    y: pl.y + Math.sin(a) * 12,
+    vx: Math.cos(a) * SHOT_SPEED,
+    vy: Math.sin(a) * SHOT_SPEED,
+    life: SHOT_LIFE,
+  });
+  events.push({ type: "shoot" });
+}
+
+function updateShots(s: GameState, events: GameEvent[]) {
+  s.shots = s.shots.filter((sh) => {
+    sh.x += sh.vx * DT;
+    sh.y += sh.vy * DT;
+    sh.life--;
+    if (sh.life <= 0) return false;
+    if (isSolid(tileAt(s.map, Math.floor(sh.x / TILE), Math.floor(sh.y / TILE)))) {
+      events.push({ type: "splash", x: sh.x, y: sh.y });
+      return false;
+    }
+    for (const pd of s.peds) {
+      if (pd.state === "down" || Math.hypot(pd.x - sh.x, pd.y - sh.y) > PED_R + 4) continue;
+      // 嚇一跳：丟下錢、濕答答地跑走
+      pd.wet = 240;
+      pd.state = "flee";
+      pd.timer = 90;
+      pd.angle = Math.atan2(sh.vy, sh.vx) + (rand(s) - 0.5);
+      dropMoney(s, pd);
+      events.push({ type: "splash", x: sh.x, y: sh.y });
+      events.push({ type: "scare", x: pd.x, y: pd.y });
+      raiseWanted(s, events);
+      return false;
+    }
+    for (const c of s.cars) {
+      if (Math.abs(c.x - sh.x) > 30 || Math.abs(c.y - sh.y) > 30) continue;
+      if (!carCircles(c).some(([cx, cy, r]) => Math.hypot(cx - sh.x, cy - sh.y) < r + 2)) continue;
+      events.push({ type: "splash", x: sh.x, y: sh.y });
+      if (c.driver === "ai" || c.driver === "police") {
+        // 司機嚇得跳下車，車子留給你
+        const wasPolice = c.driver === "police";
+        ejectDriver(s, c, events, s.player);
+        c.vx *= 0.3;
+        c.vy *= 0.3;
+        events.push({ type: "carjack" });
+        if (wasPolice) raiseWanted(s, events, true);
+      }
+      return false;
+    }
+    return true;
+  });
 }
 
 // ---------- 走路 ----------
 
-function moveWalker(s: GameState, w: { x: number; y: number }, vx: number, vy: number, r: number) {
+function moveWalker(s: GameState, w: { x: number; y: number }, vx: number, vy: number, r: number, ignore?: Car) {
   w.x += vx * DT;
   w.y += vy * DT;
   const hit = pushOutOfTiles(s.map, w.x, w.y, r);
@@ -805,7 +1112,7 @@ function moveWalker(s: GameState, w: { x: number; y: number }, vx: number, vy: n
   }
   // 被車子擠開
   for (const c of s.cars) {
-    if (Math.abs(c.x - w.x) > 40 || Math.abs(c.y - w.y) > 40) continue;
+    if (c === ignore || Math.abs(c.x - w.x) > 40 || Math.abs(c.y - w.y) > 40) continue;
     for (const [cx, cy, cr] of carCircles(c)) {
       const dx = w.x - cx;
       const dy = w.y - cy;
@@ -825,6 +1132,10 @@ function updatePlayerOnFoot(s: GameState, input: Input) {
     p.moving = false;
     return;
   }
+  if (p.punch > 0) {
+    p.moving = false;
+    return;
+  }
   const mag = Math.min(1, Math.hypot(input.dx, input.dy));
   p.moving = mag > 0.12;
   if (!p.moving) return;
@@ -839,6 +1150,7 @@ function walkable(t: T): boolean {
 }
 
 function updatePed(s: GameState, pd: Ped) {
+  if (pd.wet > 0) pd.wet--;
   if (pd.state === "down") {
     pd.timer--;
     if (pd.timer <= 0) {
@@ -1003,6 +1315,9 @@ function respawnAtStation(s: GameState, events: GameEvent[]) {
   p.car = null;
   p.down = 0;
   p.angle = Math.PI / 2;
+  p.entering = null;
+  p.exiting = null;
+  p.punch = 0;
   for (const c of s.cars) {
     if (c.chase) {
       c.chase = false;
@@ -1023,8 +1338,23 @@ export function step(s: GameState, input: Input, events: GameEvent[]): void {
   }
   if (s.wantedCooldown > 0) s.wantedCooldown--;
 
-  if (input.action) toggleCar(s, events);
-  const myCar = findCar(s, s.player.car);
+  if (input.action) toggleCar(s);
+  const pl = s.player;
+  if (pl.shootCd > 0) pl.shootCd--;
+  if (pl.gun > 0) pl.gun--;
+  if (pl.entering) updateEntering(s, input, events);
+  if (pl.exiting) updateExiting(s, events);
+  const busy = pl.entering !== null || pl.exiting !== null;
+  const myCar = findCar(s, pl.car);
+  if (!myCar && !busy && pl.down === 0) {
+    if (input.punch && pl.punch === 0) {
+      pl.punch = PUNCH_TICKS;
+      events.push({ type: "punch" });
+    }
+    if (input.shoot && pl.shootCd === 0 && pl.punch === 0) shoot(s, events);
+  }
+  if (pl.punch > 0) updatePunch(s, events);
+  updateShots(s, events);
 
   if (input.horn) {
     events.push({ type: "horn" });
@@ -1040,7 +1370,7 @@ export function step(s: GameState, input: Input, events: GameEvent[]): void {
 
   for (const c of s.cars) {
     let ctl: Controls;
-    if (c === myCar) ctl = playerControls(c, input);
+    if (c === myCar) ctl = pl.exiting ? { throttle: Math.abs(forwardSpeed(c)) > 4 ? -1 : 0, steer: 0, handbrake: false } : playerControls(c, input);
     else if (c.driver === "ai" || c.driver === "police") ctl = aiControls(s, c);
     else {
       if (c.vx === 0 && c.vy === 0) continue;
@@ -1058,8 +1388,9 @@ export function step(s: GameState, input: Input, events: GameEvent[]): void {
     for (let j = i + 1; j < s.cars.length; j++) collideCars(s, s.cars[i], s.cars[j], events);
   }
 
-  if (!myCar) updatePlayerOnFoot(s, input);
-  else {
+  if (!myCar) {
+    if (!busy) updatePlayerOnFoot(s, input);
+  } else {
     s.player.x = myCar.x;
     s.player.y = myCar.y;
     s.player.angle = myCar.angle;
@@ -1115,8 +1446,11 @@ export function step(s: GameState, input: Input, events: GameEvent[]): void {
       myCar.driver = "none";
       myCar.vx = 0;
       myCar.vy = 0;
+      myCar.door = 0;
       s.player.car = null;
     }
+    cancelEnter(s);
+    s.player.exiting = null;
     events.push({ type: "busted", fine });
   }
 

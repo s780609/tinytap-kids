@@ -14,7 +14,7 @@ export interface Camera {
 }
 
 export interface Fx {
-  kind: "smoke" | "spark" | "text";
+  kind: "smoke" | "spark" | "text" | "drop";
   x: number;
   y: number;
   vx: number;
@@ -463,6 +463,26 @@ function drawCar(ctx: Ctx, c: Car, time: number) {
       ctx.fill();
     }
   }
+  // 駕駛座車門（左側）打開
+  if (c.door > 0) {
+    const hingeX = L * 0.2;
+    const dl = L * 0.32;
+    ctx.fillStyle = "#151515";
+    ctx.fillRect(hingeX - dl, -W / 2, dl, 3);
+    ctx.save();
+    ctx.translate(hingeX, -W / 2);
+    ctx.rotate(-c.door * 1.15);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.roundRect(-dl, -4.5, dl, 4.5, 1.5);
+    ctx.fill();
+    ctx.strokeStyle = shade(body, -0.4);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = glass;
+    ctx.fillRect(-dl * 0.78, -3.8, dl * 0.45, 2);
+    ctx.restore();
+  }
   // 受損的刮痕
   if (c.hp < CAR_SPECS[c.kind].hp * 0.5) {
     ctx.strokeStyle = "rgba(0,0,0,0.45)";
@@ -481,7 +501,26 @@ function drawCar(ctx: Ctx, c: Car, time: number) {
 
 const SKIN = "#F1C9A5";
 
-function drawPerson(ctx: Ctx, x: number, y: number, angle: number, shirt: string, hair: string, phase: number, moving: boolean, down: boolean, time: number, cap?: string) {
+interface PersonExtra {
+  cap?: string;
+  /** 出拳伸出去的程度 0～1 */
+  punch?: number;
+  gun?: boolean;
+  wet?: boolean;
+}
+
+function drawPerson(ctx: Ctx, x: number, y: number, angle: number, shirt: string, hair: string, phase: number, moving: boolean, down: boolean, time: number, extra: PersonExtra = {}) {
+  const { cap, punch = 0, gun = false, wet = false } = extra;
+  if (wet) {
+    // 頭上滴水
+    ctx.fillStyle = "rgba(79,195,247,0.9)";
+    for (let k = 0; k < 3; k++) {
+      const t = (time * 1.6 + k / 3) % 1;
+      ctx.beginPath();
+      ctx.arc(x - 6 + k * 6, y - 10 + t * 8, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   ctx.save();
   ctx.translate(x, y);
   if (down) {
@@ -526,12 +565,55 @@ function drawPerson(ctx: Ctx, x: number, y: number, angle: number, shirt: string
   ctx.ellipse(swing, -2.5, 2.5, 1.8, 0, 0, Math.PI * 2);
   ctx.ellipse(-swing, 2.5, 2.5, 1.8, 0, 0, Math.PI * 2);
   ctx.fill();
-  // 手
+  // 手（出拳時右手往前伸）
   ctx.fillStyle = SKIN;
   ctx.beginPath();
   ctx.arc(-swing * 0.8, -6, 1.8, 0, Math.PI * 2);
-  ctx.arc(swing * 0.8, 6, 1.8, 0, Math.PI * 2);
+  if (punch <= 0 && !gun) ctx.arc(swing * 0.8, 6, 1.8, 0, Math.PI * 2);
   ctx.fill();
+  if (punch > 0) {
+    const fx = 3 + punch * 10;
+    ctx.strokeStyle = shirt;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, 5);
+    ctx.lineTo(fx - 2, 3);
+    ctx.stroke();
+    ctx.fillStyle = SKIN;
+    ctx.beginPath();
+    ctx.arc(fx, 3, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+    if (punch > 0.8) {
+      // 揮拳的速度線
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(fx + 4, 0);
+      ctx.lineTo(fx + 8, -1);
+      ctx.moveTo(fx + 4, 3);
+      ctx.lineTo(fx + 9, 3);
+      ctx.moveTo(fx + 4, 6);
+      ctx.lineTo(fx + 8, 7);
+      ctx.stroke();
+    }
+  } else if (gun) {
+    // 卡通水槍：橘色槍身、藍色水箱
+    ctx.fillStyle = SKIN;
+    ctx.beginPath();
+    ctx.arc(6, 4, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#FF9800";
+    ctx.beginPath();
+    ctx.roundRect(5, 2, 10, 4, 1.5);
+    ctx.fill();
+    ctx.fillStyle = "#29B6F6";
+    ctx.beginPath();
+    ctx.arc(9, 1.5, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#E65100";
+    ctx.fillRect(14.5, 3, 2, 2);
+  }
   // 身體（肩膀）
   ctx.fillStyle = shirt;
   ctx.beginPath();
@@ -555,7 +637,7 @@ function drawPerson(ctx: Ctx, x: number, y: number, angle: number, shirt: string
 }
 
 function drawPed(ctx: Ctx, p: Ped, time: number) {
-  drawPerson(ctx, p.x, p.y, p.angle, p.shirt, p.hair, p.phase, p.state !== "down", p.state === "down", time);
+  drawPerson(ctx, p.x, p.y, p.angle, p.shirt, p.hair, p.phase, p.state !== "down", p.state === "down", time, { wet: p.wet > 0 });
 }
 
 // ---------- 主畫面 ----------
@@ -633,16 +715,45 @@ export function drawGame(ctx: Ctx, s: GameState, cam: Camera, fx: Fx[], w: numbe
 
   for (const p of s.peds) if (inView(p.x, p.y)) drawPed(ctx, p, time);
 
-  const pl = s.player;
-  if (pl.car === null) {
-    // 自己腳下有一圈光，方便找到自己
-    const pulse = (Math.sin(time * 5) + 1) / 2;
-    ctx.strokeStyle = `rgba(0,230,118,${0.5 + pulse * 0.4})`;
-    ctx.lineWidth = 2;
+  // 水槍的水
+  for (const sh of s.shots) {
+    ctx.strokeStyle = "rgba(129,212,250,0.6)";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(pl.x, pl.y, 11 + pulse * 3, 0, Math.PI * 2);
+    ctx.moveTo(sh.x - sh.vx * 0.035, sh.y - sh.vy * 0.035);
+    ctx.lineTo(sh.x, sh.y);
     ctx.stroke();
-    drawPerson(ctx, pl.x, pl.y, pl.angle, "#00C853", "#3E2723", pl.phase, pl.moving, pl.down > 0, time, "#E53935");
+    ctx.fillStyle = "#4FC3F7";
+    ctx.beginPath();
+    ctx.arc(sh.x, sh.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath();
+    ctx.arc(sh.x - 1, sh.y - 1, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const pl = s.player;
+  const inT = pl.entering?.phase === "in" ? pl.entering.t / 12 : 0;
+  if (pl.car === null && inT < 1) {
+    if (!pl.entering) {
+      // 自己腳下有一圈光，方便找到自己
+      const pulse = (Math.sin(time * 5) + 1) / 2;
+      ctx.strokeStyle = `rgba(0,230,118,${0.5 + pulse * 0.4})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pl.x, pl.y, 11 + pulse * 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1 - inT;
+    const punch = pl.punch > 0 ? Math.sin(((16 - pl.punch) / 16) * Math.PI) : 0;
+    drawPerson(ctx, pl.x, pl.y, pl.angle, "#00C853", "#3E2723", pl.phase, pl.moving, pl.down > 0, time, {
+      cap: "#E53935",
+      punch,
+      gun: pl.gun > 0 && pl.punch === 0,
+    });
+    ctx.globalAlpha = 1;
   }
 
   for (const c of s.cars) if (inView(c.x, c.y)) drawCar(ctx, c, time);
@@ -705,6 +816,11 @@ export function drawGame(ctx: Ctx, s: GameState, cam: Camera, fx: Fx[], w: numbe
       ctx.fillStyle = `rgba(90,90,90,${0.45 * a})`;
       ctx.beginPath();
       ctx.arc(f.x, f.y, 6 + (1 - a) * 10, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (f.kind === "drop") {
+      ctx.fillStyle = `rgba(79,195,247,${a})`;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 2.2, 0, Math.PI * 2);
       ctx.fill();
     } else if (f.kind === "spark") {
       ctx.fillStyle = `rgba(255,${180 + Math.floor(a * 75)},60,${a})`;

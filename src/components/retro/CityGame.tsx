@@ -13,6 +13,8 @@ const KEY_X: Record<string, number> = { ArrowLeft: -1, KeyA: -1, ArrowRight: 1, 
 const KEY_Y: Record<string, number> = { ArrowUp: -1, KeyW: -1, ArrowDown: 1, KeyS: 1 };
 const ACTION_KEYS = new Set(["KeyE", "KeyF", "Enter"]);
 const HORN_KEYS = new Set(["KeyH", "KeyQ"]);
+const PUNCH_KEYS = new Set(["KeyJ", "KeyZ"]);
+const SHOOT_KEYS = new Set(["KeyK", "KeyX"]);
 const BRAKE_KEYS = new Set(["Space", "ShiftLeft", "ShiftRight"]);
 
 const BEST_KEY = "tinytap-city-best";
@@ -62,6 +64,7 @@ export default function CityGame() {
   const [message, setMessage] = useState<string | null>(null);
   const [best, setBest] = useState(0);
   const [braking, setBraking] = useState(false);
+  const [shooting, setShooting] = useState(false);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -76,6 +79,9 @@ export default function CityGame() {
   const actionRef = useRef(false);
   const hornRef = useRef(false);
   const brakeRef = useRef(false);
+  const punchRef = useRef(false);
+  const shootRef = useRef(false);
+  const shotSoundRef = useRef(0);
   const accRef = useRef(0);
   const hudRef = useRef<Hud>(HUD0);
   const bestRef = useRef(0);
@@ -203,6 +209,30 @@ export default function CityGame() {
           audioManager.chip("boomL");
           if (e.withPlayer) say("車子撞壞了！換一台吧", 1800);
           break;
+        case "punch":
+          audioManager.pop();
+          break;
+        case "punchHit":
+          audioManager.chip("armorHit");
+          fx.push({ kind: "text", x: e.x, y: e.y - 14, vx: 0, vy: -30, life: 0.8, max: 0.8, text: "砰！", color: "#FFFFFF" });
+          break;
+        case "shoot":
+          // 連發時隔一發才響一次，不會太吵
+          if (shotSoundRef.current++ % 2 === 0) audioManager.bubble();
+          break;
+        case "splash":
+          for (let i = 0; i < 6; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const v = 30 + Math.random() * 60;
+            fx.push({ kind: "drop", x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.35, max: 0.35 });
+          }
+          break;
+        case "scare":
+          fx.push({ kind: "text", x: e.x, y: e.y - 14, vx: 0, vy: -30, life: 0.9, max: 0.9, text: "哇！", color: "#B3E5FC" });
+          break;
+        case "carjack":
+          say("司機嚇跑了！車子是你的了", 1400);
+          break;
       }
     };
 
@@ -257,9 +287,22 @@ export default function CityGame() {
       const dy = mergeAxis(Math.sign(ky), stickRef.current.dy);
       const events: GameEvent[] = [];
       for (let i = 0; i < steps; i++) {
-        step(g, { dx, dy, action: actionRef.current, horn: hornRef.current, handbrake: brakeRef.current }, events);
+        step(
+          g,
+          {
+            dx,
+            dy,
+            action: actionRef.current,
+            horn: hornRef.current,
+            handbrake: brakeRef.current,
+            punch: punchRef.current,
+            shoot: shootRef.current,
+          },
+          events
+        );
         actionRef.current = false;
         hornRef.current = false;
+        punchRef.current = false;
       }
       for (const e of events) onEvent(e, g);
       pushHud(g);
@@ -275,7 +318,15 @@ export default function CityGame() {
     raf = requestAnimationFrame(loop);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code in KEY_X || e.code in KEY_Y || ACTION_KEYS.has(e.code) || HORN_KEYS.has(e.code) || BRAKE_KEYS.has(e.code)) {
+      if (
+        e.code in KEY_X ||
+        e.code in KEY_Y ||
+        ACTION_KEYS.has(e.code) ||
+        HORN_KEYS.has(e.code) ||
+        BRAKE_KEYS.has(e.code) ||
+        PUNCH_KEYS.has(e.code) ||
+        SHOOT_KEYS.has(e.code)
+      ) {
         e.preventDefault();
       }
       if (e.repeat) return;
@@ -283,10 +334,13 @@ export default function CityGame() {
       if (ACTION_KEYS.has(e.code)) actionRef.current = true;
       if (HORN_KEYS.has(e.code)) hornRef.current = true;
       if (BRAKE_KEYS.has(e.code)) brakeRef.current = true;
+      if (PUNCH_KEYS.has(e.code)) punchRef.current = true;
+      if (SHOOT_KEYS.has(e.code)) shootRef.current = true;
     };
     const onKeyUp = (e: KeyboardEvent) => {
       keysRef.current.delete(e.code);
       if (BRAKE_KEYS.has(e.code)) brakeRef.current = false;
+      if (SHOOT_KEYS.has(e.code)) shootRef.current = false;
     };
     const keys = keysRef.current;
     window.addEventListener("keydown", onKeyDown);
@@ -309,6 +363,11 @@ export default function CityGame() {
   const holdBrake = (on: boolean) => {
     brakeRef.current = on;
     setBraking(on);
+  };
+
+  const holdShoot = (on: boolean) => {
+    shootRef.current = on;
+    setShooting(on);
   };
 
   return (
@@ -336,11 +395,12 @@ export default function CityGame() {
             </button>
             <ul className="mt-4 space-y-1.5 text-left text-sm font-bold text-white/80 bg-black/30 rounded-2xl p-4">
               <li>🕹️ 左下搖桿：走路，坐車時往哪裡推車就往哪裡開</li>
-              <li>🚗 走到車子旁邊按「上車」，任何車都能開</li>
+              <li>🚗 走到車子旁邊按「上車」，會走到車門開門坐進去，任何車都能開</li>
               <li>💰 撿路上的錢，鑽石最值錢</li>
-              <li>🌀 按住「甩尾」可以漂移，📯 按喇叭讓路人讓開</li>
-              <li>🚓 撞到人或警車會被通緝，躲開警察一陣子就沒事</li>
-              <li>⌨️ 鍵盤：方向鍵移動、E 上下車、空白鍵甩尾、H 喇叭</li>
+              <li>👊 走路時可以出拳，💦 按住水槍連發：路人會嚇得丟下錢，司機會嚇得下車</li>
+              <li>🌀 開車時按住「甩尾」可以漂移，📯 按喇叭讓路人讓開</li>
+              <li>🚓 打人、撞人或惹警察會被通緝，躲開警察一陣子就沒事</li>
+              <li>⌨️ 鍵盤：方向鍵移動、E 上下車、J 出拳、K 水槍、空白鍵甩尾、H 喇叭</li>
             </ul>
           </div>
         </div>
@@ -407,34 +467,66 @@ export default function CityGame() {
           {/* 右下：按鈕 */}
           <div className="absolute z-20 right-4 bottom-4 flex items-end gap-3">
             <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                aria-label="喇叭"
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  hornRef.current = true;
-                }}
-                className="w-14 h-14 rounded-full bg-[#FFB300] border-4 border-[#E65100] text-2xl shadow-[0_4px_0_#8d3b00] active:translate-y-0.5"
-              >
-                📯
-              </button>
-              {hud.inCar && (
-                <button
-                  type="button"
-                  aria-label="甩尾（按住）"
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                    holdBrake(true);
-                  }}
-                  onPointerUp={() => holdBrake(false)}
-                  onPointerCancel={() => holdBrake(false)}
-                  className={`w-14 h-14 rounded-full border-4 text-2xl shadow-[0_4px_0_#311b92] ${
-                    braking ? "bg-[#B388FF] border-white translate-y-0.5" : "bg-[#7C4DFF] border-[#4527A0]"
-                  }`}
-                >
-                  🌀
-                </button>
+              {hud.inCar ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="喇叭"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      hornRef.current = true;
+                    }}
+                    className="w-14 h-14 rounded-full bg-[#FFB300] border-4 border-[#E65100] text-2xl shadow-[0_4px_0_#8d3b00] active:translate-y-0.5"
+                  >
+                    📯
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="甩尾（按住）"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      holdBrake(true);
+                    }}
+                    onPointerUp={() => holdBrake(false)}
+                    onPointerCancel={() => holdBrake(false)}
+                    className={`w-14 h-14 rounded-full border-4 text-2xl shadow-[0_4px_0_#311b92] ${
+                      braking ? "bg-[#B388FF] border-white translate-y-0.5" : "bg-[#7C4DFF] border-[#4527A0]"
+                    }`}
+                  >
+                    🌀
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    aria-label="水槍（按住連發）"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      holdShoot(true);
+                    }}
+                    onPointerUp={() => holdShoot(false)}
+                    onPointerCancel={() => holdShoot(false)}
+                    className={`w-14 h-14 rounded-full border-4 text-2xl shadow-[0_4px_0_#01579b] ${
+                      shooting ? "bg-[#81D4FA] border-white translate-y-0.5" : "bg-[#29B6F6] border-[#0277BD]"
+                    }`}
+                  >
+                    💦
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="出拳"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      punchRef.current = true;
+                    }}
+                    className="w-14 h-14 rounded-full bg-[#FF7043] border-4 border-[#BF360C] text-2xl shadow-[0_4px_0_#7f2306] active:translate-y-0.5"
+                  >
+                    👊
+                  </button>
+                </>
               )}
             </div>
             <button
